@@ -1,0 +1,28 @@
+name: mealie-hook
+services:
+  mealie-hook:
+    image: localhost/mealie-hook:latest # built by deploy.sh on marvin
+    container_name: mealie-hook
+    restart: unless-stopped
+    mem_limit: 256m
+    # Rootless podman: keep-id maps host simon <-> container 1000, so ./data stays
+    # simon-owned and readable from the host (snapshots, run records, eval reports).
+    userns_mode: keep-id
+    user: ${PUID:-1000}:${PGID:-1000}
+    env_file: .env # MEALIE_TOKEN lives here, never in git
+    environment:
+      MEALIE_URL: http://mealie:9000/api
+      LLM_URL: http://host.containers.internal:8080/v1
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data:z
+      # Uncomment to tune prompts live without rebuilding the image:
+      # - ./prompts:/app/prompts:ro,z
+    # No published port. Mealie reaches the hook as http://mealie-hook:8000 over the
+    # shared network; nothing else needs to.
+    networks:
+      - mealie
+networks:
+  mealie:
+    external: true
+    name: mealie_default
