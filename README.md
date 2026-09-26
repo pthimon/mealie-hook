@@ -5,6 +5,8 @@ finishes off recipes as they are imported (below), and serves the **Mealie Toolk
 on Mealie's own domain: meal plan to shopping list with per-meal sizes, the shopping export,
 the review queue and the processing rules ([The page](#the-page-mealie-toolkit-at-recipesdomaintoolkit)).
 
+![Plan → list: each planned meal with its own size](docs/plan-meals.png)
+
 The recipe processing is done in code, with the judgement calls made by the local Qwen model
 served by llama.cpp's llama-server (any OpenAI-compatible endpoint will do).
 
@@ -68,6 +70,8 @@ Served by this service, through Caddy, on Mealie's own domain, and styled to mat
 (its default theme, following the system's light or dark setting). It uses your Mealie login
 (the `mealie.access_token` cookie, checked against Mealie on each request) and is for
 Mealie admins only.
+
+![The combined list: every ingredient added up per food, with where it comes from and when it was last bought](docs/plan-combined.png)
 
 - **Plan → list** (the landing tab): replaces Mealie's "add planner to shopping list"
   dialog, in two steps.

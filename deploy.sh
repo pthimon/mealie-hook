@@ -11,7 +11,7 @@ HOST=${HOST:?set HOST to the ssh host that runs the stack, or put HOST=... in de
 DEST=${DEST:-compose/mealie-toolkit}   # relative to ~ on the host
 
 rsync -a --delete \
-  --exclude .git --exclude .env --exclude deploy.local --exclude data/ --exclude export/ \
+  --exclude .git --exclude .env --exclude deploy.local --exclude docs/ --exclude data/ --exclude export/ \
   --exclude __pycache__ --exclude .venv --exclude .pytest_cache --exclude '*.egg-info' \
   ./ "$HOST:$DEST/"
 
