@@ -133,6 +133,20 @@ ul.combined .bought { color: var(--muted); font-size: 12.5px; white-space: nowra
 .sub a { color: var(--text); text-decoration: none; font-weight: 500; }
 .sub a:hover { color: var(--primary); }
 .linkish { border: 0; background: none; color: var(--primary); cursor: pointer; font: inherit; font-size: 13px; padding: 0; }
+input.num { width: 5em; padding: 5px 6px; font: inherit; color: var(--text); background: var(--tint); border: 0;
+  border-bottom: 1px solid var(--muted); border-radius: 4px 4px 0 0; }
+.chip.toggle { border: 0; cursor: pointer; font: inherit; font-size: 12px; }
+.disc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.disc-card { position: relative; background: var(--panel); border-radius: 2px; box-shadow: var(--shadow); overflow: hidden;
+  display: flex; flex-direction: column; outline: 2px solid transparent; }
+.disc-card.picked { outline-color: var(--primary); }
+.disc-card img, .disc-card .noimg { width: 100%; aspect-ratio: 440 / 300; object-fit: cover; display: block; background: var(--tint); }
+.disc-card .pick { position: absolute; top: 8px; left: 8px; background: var(--panel); border-radius: 4px; padding: 3px 4px 0;
+  box-shadow: var(--shadow); line-height: 1; }
+.disc-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px; }
+.disc-title { color: var(--text); font-weight: 500; text-decoration: none; }
+.disc-title:hover { color: var(--primary); }
+.stars { color: var(--primary); }
 .spin::after { content: " …"; animation: dots 1.2s steps(4) infinite; }
 @keyframes dots { 0% { content: ""; } 25% { content: " ."; } 50% { content: " .."; } 75% { content: " ..."; } }
 </style>
@@ -147,6 +161,7 @@ ul.combined .bought { color: var(--muted); font-size: 12.5px; white-space: nowra
 <nav id="tabs">
   <button data-tab="plan">Plan → list</button>
   <button data-tab="shopping">Shopping</button>
+  <button data-tab="discover">Discover</button>
   <button data-tab="review">Needs review</button>
   <button data-tab="rules">Rules</button>
   <button data-tab="chat">Change rules</button>
@@ -212,6 +227,32 @@ ul.combined .bought { color: var(--muted); font-size: 12.5px; white-space: nowra
       <p class="small muted">One line per item, for pasting into the supermarket's list search. Crossed-out
         Home Assistant items are already covered by a Mealie item.</p>
       <textarea id="shop-text" rows="10" readonly></textarea></div>
+  </section>
+
+  <section class="tab" id="tab-discover">
+    <div class="panel">
+      <div class="row">
+        <input type="text" id="disc-q" placeholder="Search BBC Good Food, e.g. salmon, traybake" style="flex:1;min-width:220px;width:auto">
+        <button class="btn primary" id="disc-go">Search</button>
+      </div>
+      <div id="disc-filters" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:12px">
+        <span class="small muted">Per serving</span>
+        <label class="small row" style="gap:6px">sat fat ≤ <input type="number" id="disc-sat" min="0" step="0.5" class="num"> g</label>
+        <label class="small row" style="gap:6px">calories ≤ <input type="number" id="disc-kcal" min="0" step="50" class="num"></label>
+        <label class="small row" style="gap:6px">at least <input type="number" id="disc-count-min" min="0" step="10" class="num"> ratings</label>
+        <label class="small"><input type="checkbox" id="disc-have"> show recipes already in Mealie</label>
+      </div>
+      <div id="disc-status" class="small muted" style="margin-top:8px"></div>
+    </div>
+    <div class="row" style="margin:4px 0 12px"><span id="disc-count" class="small muted"></span></div>
+    <div id="disc-results" class="disc-grid"></div>
+    <div class="row" style="margin:16px 0">
+      <button class="btn" id="disc-more" hidden>Load more</button>
+      <span style="flex:1"></span>
+      <button class="btn primary" id="disc-import" disabled>Import to Mealie</button>
+    </div>
+    <div id="disc-import-status" class="small muted"></div>
   </section>
 
   <section class="tab" id="tab-review">
@@ -508,6 +549,122 @@ $("#plan-add").addEventListener("click", async () => {
       el("a", { href: "#shopping" }, "Go to Shopping →"));
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (e) { $("#plan-add-status").textContent = e.message; planSummary(); }
+});
+
+// --------------------------------------------------------------------------- discover
+const disc = { items: [], page: 0, has_more: false, total: 0, filters: [], sorts: [], picked: new Set(), queued: new Set(), key: "" };
+const DISC_DEFAULTS = { q: "", sort: "rating", mealType: ["dinner"], diet: ["healthy"], ratings: ["gte-4"], totalTime: [], cuisine: [], difficulty: [],
+  maxSat: "3", maxKcal: "", minCount: "20", showHave: false };
+let discForm = { ...DISC_DEFAULTS };
+try { discForm = { ...DISC_DEFAULTS, ...JSON.parse(localStorage.getItem("discover") || "{}") }; } catch {}
+function saveDisc() { try { localStorage.setItem("discover", JSON.stringify(discForm)); } catch {} }
+const DISC_SELECTS = ["mealType", "ratings", "totalTime", "cuisine", "difficulty"];
+
+function discQuery(page) {
+  const q = new URLSearchParams({ page, sort: discForm.sort });
+  if (discForm.q.trim()) q.set("q", discForm.q.trim());
+  for (const n of [...DISC_SELECTS, "diet"]) for (const v of discForm[n] || []) q.append(n, v);
+  return q;
+}
+function renderDiscFilters() {
+  const box = $("#disc-filters");
+  const byName = Object.fromEntries(disc.filters.map((f) => [f.name, f]));
+  const select = (name, anyLabel) => {
+    const f = byName[name]; if (!f) return null;
+    const s = el("select", { style: "width:auto", onchange: () => { discForm[name] = s.value ? [s.value] : []; saveDisc(); discSearch(); } },
+      el("option", { value: "" }, anyLabel), f.options.map((o) => el("option", { value: o.value, selected: (discForm[name] || []).includes(o.value) }, o.label)));
+    return el("label", { class: "small row", style: "gap:6px" }, f.label, s);
+  };
+  const sort = el("select", { style: "width:auto", onchange: () => { discForm.sort = sort.value; saveDisc(); discSearch(); } },
+    disc.sorts.map((o) => el("option", { value: o.value, selected: o.value === discForm.sort }, o.label)));
+  const diet = byName.diet;
+  box.replaceChildren(...[
+    el("div", { class: "row" }, select("mealType", "Any meal"), select("ratings", "Any rating"), select("totalTime", "Any time"),
+      select("cuisine", "Any cuisine"), select("difficulty", "Any difficulty"), el("label", { class: "small row", style: "gap:6px" }, "Sort", sort)),
+    diet ? el("div", { class: "row", style: "margin-top:10px" }, el("span", { class: "small muted" }, "Diet"),
+      diet.options.map((o) => {
+        const on = (discForm.diet || []).includes(o.value);
+        return el("button", { class: "chip toggle" + (on ? "" : " quiet"), onclick: () => {
+          discForm.diet = on ? discForm.diet.filter((v) => v !== o.value) : [...(discForm.diet || []), o.value]; saveDisc(); discSearch(); } }, o.label);
+      })) : null].filter(Boolean));
+}
+function discVisible() {
+  const maxSat = parseFloat(discForm.maxSat), maxKcal = parseFloat(discForm.maxKcal), minCount = parseInt(discForm.minCount) || 0;
+  return disc.items.filter((i) => (discForm.showHave || !i.in_mealie)
+    && (isNaN(maxSat) || (i.sat_fat != null && i.sat_fat <= maxSat))
+    && (isNaN(maxKcal) || (i.calories != null && i.calories <= maxKcal))
+    && (i.rating_count || 0) >= minCount);
+}
+function renderDisc() {
+  const vis = discVisible(), have = disc.items.filter((i) => i.in_mealie).length;
+  $("#disc-count").textContent = disc.items.length
+    ? `${vis.length} of ${disc.items.length} loaded match` + (have && !discForm.showHave ? ` · ${have} already in Mealie hidden` : "") + ` · ${disc.total.toLocaleString()} on Good Food`
+    : "";
+  const fmt = (v, unit) => v == null ? "?" : `${Math.round(v * 10) / 10}${unit}`;
+  $("#disc-results").replaceChildren(...vis.map((i) => {
+    const queued = disc.queued.has(i.url);
+    const box = el("input", { type: "checkbox", checked: disc.picked.has(i.url), disabled: i.in_mealie || queued,
+      onchange: () => { box.checked ? disc.picked.add(i.url) : disc.picked.delete(i.url); card.classList.toggle("picked", box.checked); discSummary(); } });
+    const card = el("div", { class: "disc-card" + (disc.picked.has(i.url) ? " picked" : "") },
+      el("label", { class: "pick" }, box),
+      i.image ? el("img", { src: i.image + "?quality=70&resize=440,300", alt: "", loading: "lazy" }) : el("div", { class: "noimg" }),
+      el("div", { class: "disc-body" },
+        el("a", { href: i.url, target: "_blank", rel: "noopener", class: "disc-title" }, i.title),
+        el("div", { class: "small" }, el("span", { class: "stars" }, "★ " + (i.rating || "–")), el("span", { class: "muted" }, ` (${(i.rating_count || 0).toLocaleString()})`)),
+        el("div", { class: "small muted" }, [`${fmt(i.sat_fat, "g")} sat fat`, `${fmt(i.calories, "")} kcal`,
+          i.minutes ? `${i.minutes} min` : null, i.servings ? `serves ${i.servings}` : null].filter(Boolean).join(" · ")),
+        i.in_mealie ? el("span", { class: "chip ok" }, "in Mealie") : queued ? el("span", { class: "chip ok" }, "importing") : null));
+    return card;
+  }));
+  if (disc.items.length && !vis.length) $("#disc-results").replaceChildren(el("p", { class: "muted" }, "Nothing loaded matches the nutrition limits; try Load more or loosen them."));
+  $("#disc-more").hidden = !disc.has_more;
+  discSummary();
+}
+function discSummary() {
+  const n = disc.picked.size, b = $("#disc-import");
+  b.disabled = !n; b.textContent = n ? `Import ${n} recipe${n === 1 ? "" : "s"} to Mealie` : "Import to Mealie";
+}
+async function discLoad(page) {
+  const status = $("#disc-status");
+  status.className = "small muted spin"; status.textContent = page === 1 ? "Searching Good Food" : "Loading more";
+  $("#disc-more").disabled = true;
+  try {
+    const r = await api("discover?" + discQuery(page));
+    if (page === 1) disc.items = [];
+    const seen = new Set(disc.items.map((i) => i.url));
+    disc.items.push(...r.items.filter((i) => !seen.has(i.url)));
+    Object.assign(disc, { page, has_more: r.has_more, total: r.total });
+    if (r.filters.length) { disc.filters = r.filters; disc.sorts = r.sorts; renderDiscFilters(); }
+    status.className = "small muted"; status.textContent = "";
+    renderDisc();
+  } catch (e) { status.className = "small muted"; status.textContent = e.message; }
+  $("#disc-more").disabled = false;
+}
+function discSearch() { disc.picked.clear(); discLoad(1); }
+loaders.discover = async () => {
+  $("#disc-q").value = discForm.q;
+  for (const [id, k] of [["#disc-sat", "maxSat"], ["#disc-kcal", "maxKcal"], ["#disc-count-min", "minCount"]]) $(id).value = discForm[k];
+  $("#disc-have").checked = discForm.showHave;
+  if (!disc.page) discLoad(1);
+};
+$("#disc-go").addEventListener("click", () => { discForm.q = $("#disc-q").value; saveDisc(); discSearch(); });
+$("#disc-q").addEventListener("keydown", (e) => { if (e.key === "Enter") { discForm.q = $("#disc-q").value; saveDisc(); discSearch(); } });
+for (const [id, k] of [["#disc-sat", "maxSat"], ["#disc-kcal", "maxKcal"], ["#disc-count-min", "minCount"]])
+  $(id).addEventListener("input", () => { discForm[k] = $(id).value; saveDisc(); renderDisc(); });
+$("#disc-have").addEventListener("change", () => { discForm.showHave = $("#disc-have").checked; saveDisc(); renderDisc(); });
+$("#disc-more").addEventListener("click", () => discLoad(disc.page + 1));
+$("#disc-import").addEventListener("click", async () => {
+  const urls = [...disc.picked];
+  if (!urls.length) return;
+  $("#disc-import").disabled = true;
+  try {
+    const r = await api("discover/import", { method: "POST", body: { urls } });
+    urls.forEach((u) => { disc.queued.add(u); disc.picked.delete(u); });
+    renderDisc();
+    $("#disc-import-status").textContent = `Mealie is importing ${r.queued} recipe${r.queued === 1 ? "" : "s"}` +
+      (r.skipped.length ? ` (${r.skipped.length} skipped: already in Mealie)` : "") +
+      ". Each is then parsed and filed automatically within a few minutes; anything unsure shows up under Needs review.";
+  } catch (e) { $("#disc-import-status").textContent = e.message; discSummary(); }
 });
 
 // --------------------------------------------------------------------------- shopping

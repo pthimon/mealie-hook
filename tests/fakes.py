@@ -117,6 +117,10 @@ class FakeMealie:
         self.added_to_list = getattr(self, "added_to_list", []) + [(list_id, copy.deepcopy(items))]
         return {"id": list_id}
 
+    def bulk_import_urls(self, urls):
+        self.bulk_imported = getattr(self, "bulk_imported", []) + [list(urls)]
+        return {"reportId": "rep-1"}
+
     # meal planner
     def mealplans(self, start, end):
         return [e for e in getattr(self, "plan", []) if start <= e["date"] <= end]

@@ -109,6 +109,11 @@ class Mealie:
         ingredient by the increment and keeps the recipe reference, as its own dialog does."""
         return self.req("POST", f"/households/shopping/lists/{list_id}/recipe", items)
 
+    def bulk_import_urls(self, urls: list[str]) -> dict:
+        """Mealie's bulk URL import: scraping runs in the background and the returned
+        reportId tracks it. Fires recipe_created like an import from the UI."""
+        return self.req("POST", "/recipes/create/url/bulk", {"imports": [{"url": u} for u in urls]})
+
     # meal planner
     def mealplans(self, start: str, end: str) -> list[dict]:
         return self._all(f"/households/mealplans?start_date={start}&end_date={end}")

@@ -3,7 +3,7 @@
 A companion service for a self-hosted [Mealie](https://mealie.io). It does two jobs:
 finishes off recipes as they are imported (below), and serves the **Mealie Toolkit** page
 on Mealie's own domain: meal plan to shopping list with per-meal sizes, the shopping export,
-the review queue and the processing rules ([The page](#the-page-mealie-toolkit-at-recipesdomaintoolkit)).
+finding well-rated BBC Good Food recipes to import, the review queue and the processing rules ([The page](#the-page-mealie-toolkit-at-recipesdomaintoolkit)).
 
 ![Plan → list: each planned meal with its own size](docs/plan-meals.png)
 
@@ -110,6 +110,14 @@ Mealie admins only.
   export, and get their own **Tick off these** button. An item topped up by a later recipe
   counts as new. Home Assistant items have no dates, so they always stay in the export. The
   page shows when you last ticked off, as a reminder.
+- **Discover**: finds well-rated BBC Good Food recipes to import. It uses Good Food's own
+  search and filters (meal type, diet, minimum stars, time, cuisine, difficulty, sorted by
+  most popular by default) and drops paywalled premium recipes. Each result's page is read
+  for sat fat, calories, servings and time, which the per-serving limits filter on (Good
+  Food publishes no cholesterol figures). Pages are cached for 30 days in
+  `data/discover-cache.json`, and recipes already in Mealie (matched on source URL) are
+  hidden. **Import** hands the ticked recipes to Mealie's bulk URL importer, so they are then
+  processed like any other import. The filters are remembered in the browser.
 - **Needs review**: flagged recipes with their reasons, linked into Mealie. **Mark
   reviewed** removes the tag and the note.
 - **Rules**: every category, tag, tool and aisle with its guidance and roles, the prompts
@@ -148,6 +156,7 @@ mealie_toolkit/
   editor.md       the rules editor's own instructions (not editable from the page)
   shopping.py     Mealie + Home Assistant shopping export and tick-off
   planner.py      Plan -> list: the meal plan, scaled per meal, onto a shopping list
+  discover.py     Discover: Good Food search, per-recipe nutrition, bulk import
   bought.py       when each food was last bought (ticked off a list)
   review.py       the Needs review queue
   scrape.py       scrape checks, page extraction (BeautifulSoup), nutrition

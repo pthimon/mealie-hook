@@ -24,7 +24,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import bought, chat, planner, review, shopping
+from . import bought, chat, discover, planner, review, shopping
 from .pipeline import Pipeline
 from .rules import FILES, Rules, RulesError, unified
 
@@ -103,6 +103,10 @@ class TickIn(BaseModel):
     ha_ids: list[str] = []
 
 
+class DiscoverIn(BaseModel):
+    urls: list[str]
+
+
 class PlanItemIn(BaseModel):
     slug: str
     scale: float
@@ -122,7 +126,7 @@ class PlanAddIn(BaseModel):
     entries: list[PlanEntryIn] = []
 
 
-def create_app(pipeline: Pipeline, worker, auth=None) -> FastAPI:
+def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
     from .server import handle_event                 # avoid an import cycle
 
     app = FastAPI(title="mealie-toolkit", docs_url=None, redoc_url=None, openapi_url=None)
@@ -132,6 +136,7 @@ def create_app(pipeline: Pipeline, worker, auth=None) -> FastAPI:
     cfg = pipeline.cfg
     ha = shopping.HomeAssistant(cfg.ha_url, cfg.ha_token) if cfg.ha_url else None
     user_dep = [Depends(csrf_guard)]
+    goodfood = goodfood or discover.GoodFood(cfg.data_dir)
 
     def who(user: dict) -> str:
         return user.get("username") or user.get("email") or "?"
@@ -340,6 +345,25 @@ def create_app(pipeline: Pipeline, worker, auth=None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         log.info("%s added the plan to shopping list %s: %s", who(user), body.list_id, res)
+        return res
+
+    # -------------------------------------------------------------------- discover
+
+    @app.get("/ui/api/discover")
+    def discover_search(request: Request, page: int = 1, user=Depends(auth)):
+        qp = request.query_params
+        params = {"q": qp.get("q"), "sort": qp.get("sort"),
+                  **{n: qp.getlist(n) for n in discover.FILTERS}}
+        try:
+            return discover.search(pipeline.mealie, goodfood, params, page)
+        except discover.DiscoverError as e:
+            raise HTTPException(502, str(e)) from None
+
+    @app.post("/ui/api/discover/import", dependencies=user_dep)
+    def discover_import(body: DiscoverIn, user=Depends(auth)):
+        res = discover.import_urls(pipeline.mealie, body.urls[:100])
+        log.info("%s queued %d Good Food recipes for import (report %s)", who(user),
+                 res["queued"], res["report"])
         return res
 
     @app.exception_handler(RulesError)
