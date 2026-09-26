@@ -7,9 +7,9 @@ existing record, and refuses to create one that looks wrong.
 
 import re
 
-# Canonical short form for unit spellings. The unit table already holds duplicates
-# (`clove`/`cloves`, `g`/`gram`, `tbsp`/`tablespoon`); mapping onto the short singular keeps
-# the records that are already in use accumulating rather than the spares.
+# Canonical short form for unit spellings, so "2 cloves" and "100 grams" land on the `clove`
+# and `g` records instead of creating duplicates (the ones that had crept in were merged in
+# Mealie on 2026-09-26).
 UNIT_ALIASES = {
     "gram": "g", "grams": "g", "gr": "g", "gms": "g",
     "kilogram": "kg", "kilograms": "kg", "kilo": "kg", "kilos": "kg",
@@ -33,6 +33,14 @@ ALLOWED_UNITS = {
     "piece", "knob", "sprig", "stick", "strip", "slice", "head", "stalk", "bag", "pack",
     "sheet", "square", "dash", "cup", "tin", "can", "jar", "sachet", "pot", "punnet",
 }
+
+# Units written as abbreviations, the same for one or many ("2 tbsp", not "2 tbsps").
+ABBREVIATED_UNITS = {"g", "kg", "ml", "l", "tsp", "tbsp", "dsp"}
+
+# Plural for every other unit the service may create ("clove" -> "cloves"), taken from the
+# alias table so the two cannot drift. Mealie shows it on lists and recipes for amounts over 1.
+UNIT_PLURALS = {v: k for k, v in UNIT_ALIASES.items()
+                if v in ALLOWED_UNITS and v not in ABBREVIATED_UNITS and k in (v + "s", v + "es")}
 
 # "Vague measure" units that a line can open with and the model sometimes leaves in the note
 # ("Handful fresh coriander" -> quantity 0, no unit). Recovered deterministically.

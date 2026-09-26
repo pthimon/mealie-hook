@@ -68,8 +68,11 @@ class Mealie:
             body["labelId"] = label_id
         return self.req("POST", "/foods", body)
 
-    def create_unit(self, name: str) -> dict:
-        return self.req("POST", "/units", {"name": name})
+    def create_unit(self, name: str, plural: str | None = None) -> dict:
+        body = {"name": name}
+        if plural:
+            body["pluralName"] = plural
+        return self.req("POST", "/units", body)
 
     def create_tag(self, name: str) -> dict:
         return self.req("POST", "/organizers/tags", {"name": name})
@@ -100,6 +103,18 @@ class Mealie:
 
     def shopping_list(self, list_id: str) -> dict:
         return self.req("GET", f"/households/shopping/lists/{list_id}")
+
+    def add_recipes_to_list(self, list_id: str, items: list[dict]) -> dict:
+        """[{recipeId, recipeIncrementQuantity, recipeIngredients}]: Mealie scales each
+        ingredient by the increment and keeps the recipe reference, as its own dialog does."""
+        return self.req("POST", f"/households/shopping/lists/{list_id}/recipe", items)
+
+    # meal planner
+    def mealplans(self, start: str, end: str) -> list[dict]:
+        return self._all(f"/households/mealplans?start_date={start}&end_date={end}")
+
+    def household_self(self) -> dict:
+        return self.req("GET", "/households/self")
 
     def notifiers(self) -> list[dict]:
         return self._all("/households/events/notifications")

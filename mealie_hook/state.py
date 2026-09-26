@@ -3,7 +3,7 @@
 import json
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -73,6 +73,40 @@ class State:
             self.data["last_tick"] = now_iso()
             self._save()
             return self.data["last_tick"]
+
+    def record_bought(self, found: dict[str, str]) -> dict[str, str]:
+        """Fold {food key: time} into the last-bought record, latest wins. Returns it all."""
+        with self.lock:
+            rec = self.data.setdefault("bought", {})
+            changed = False
+            for k, ts in found.items():
+                t = parse_ts(ts)
+                if not t:
+                    continue
+                iso = t.astimezone(timezone.utc).isoformat(timespec="seconds")
+                if iso > rec.get(k, ""):
+                    rec[k] = iso
+                    changed = True
+            if changed:
+                self._save()
+            return dict(rec)
+
+    def plan_added(self, entries: list[dict], keep_days: int = 60):
+        """Plan entries added to a shopping list ({id, date, slug, scale}), and each
+        recipe's scale as the default for next time. Entries planned more than
+        `keep_days` ago are forgotten."""
+        with self.lock:
+            added = self.data.setdefault("plan_added", {})
+            scales = self.data.setdefault("plan_scales", {})
+            at = now_iso()
+            for e in entries:
+                added[str(e["id"])] = {"at": at, "date": e.get("date")}
+                if e.get("slug") and e.get("scale"):
+                    scales[e["slug"]] = e["scale"]
+            cutoff = (datetime.now(timezone.utc).date() - timedelta(days=keep_days)).isoformat()
+            for k in [k for k, v in added.items() if (v.get("date") or "9999") < cutoff]:
+                del added[k]
+            self._save()
 
     def swept(self):
         with self.lock:

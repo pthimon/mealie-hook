@@ -81,8 +81,10 @@ class FakeMealie:
         self.created_foods.append(rec)
         return rec
 
-    def create_unit(self, name):
-        return {"id": f"new-{name}", "name": name}
+    def create_unit(self, name, plural=None):
+        rec = {"id": f"new-{name}", "name": name, "pluralName": plural}
+        self.created_units = getattr(self, "created_units", []) + [rec]
+        return rec
 
     def create_tag(self, name):
         rec = {"id": "t-review", "name": name}
@@ -110,6 +112,17 @@ class FakeMealie:
 
     def shopping_list(self, list_id):
         return {"id": list_id, "listItems": self.shop_items}
+
+    def add_recipes_to_list(self, list_id, items):
+        self.added_to_list = getattr(self, "added_to_list", []) + [(list_id, copy.deepcopy(items))]
+        return {"id": list_id}
+
+    # meal planner
+    def mealplans(self, start, end):
+        return [e for e in getattr(self, "plan", []) if start <= e["date"] <= end]
+
+    def household_self(self):
+        return {"slug": "family"}
 
     def tick_shopping_items(self, items):
         ids = {i["id"] for i in items}

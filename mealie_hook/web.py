@@ -1,4 +1,4 @@
-"""HTTP: the internal webhook, and the rules / review / shopping page for people.
+"""HTTP: the internal webhook, and the Mealie Toolkit page (plan, shopping, review, rules).
 
 Two audiences on one app:
 
@@ -24,7 +24,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import chat, review, shopping
+from . import bought, chat, planner, review, shopping
 from .pipeline import Pipeline
 from .rules import FILES, Rules, RulesError, unified
 
@@ -101,6 +101,25 @@ class TickIn(BaseModel):
     list_id: str
     mealie_ids: list[str] = []
     ha_ids: list[str] = []
+
+
+class PlanItemIn(BaseModel):
+    slug: str
+    scale: float
+    refs: list[str] = []
+
+
+class PlanEntryIn(BaseModel):
+    id: int
+    date: str | None = None
+    slug: str | None = None
+    scale: float | None = None
+
+
+class PlanAddIn(BaseModel):
+    list_id: str
+    items: list[PlanItemIn]
+    entries: list[PlanEntryIn] = []
 
 
 def create_app(pipeline: Pipeline, worker, auth=None) -> FastAPI:
@@ -288,13 +307,39 @@ def create_app(pipeline: Pipeline, worker, auth=None) -> FastAPI:
     def shopping_view(list_id: str | None = None, quantities: bool = False,
                       since: str | None = None, user=Depends(auth)):
         view = shopping.build(pipeline.mealie, ha, list_id, quantities, since)
+        try:
+            bought.harvest(pipeline.mealie, pipeline.state)
+        except Exception:
+            log.exception("could not record ticked items as bought")
         return {**view, "last_tick": pipeline.state.data.get("last_tick")}
 
     @app.post("/ui/api/shopping/tick", dependencies=user_dep)
     def shopping_tick(body: TickIn, user=Depends(auth)):
-        res = shopping.tick(pipeline.mealie, ha, body.list_id, body.mealie_ids, body.ha_ids)
+        res = shopping.tick(pipeline.mealie, ha, body.list_id, body.mealie_ids, body.ha_ids,
+                            pipeline.state)
         pipeline.state.ticked()
         log.info("%s ticked off shopping: %s", who(user), res)
+        return res
+
+    # ---------------------------------------------------------------- plan -> list
+
+    @app.get("/ui/api/plan")
+    def plan_view(start: str | None = None, end: str | None = None, user=Depends(auth)):
+        d_start, d_end = planner.default_range()
+        lists = pipeline.mealie.shopping_lists()
+        view = planner.build(pipeline.mealie, pipeline.state, start or d_start, end or d_end,
+                             cfg.plan_default_servings, lists)
+        return {**view, "lists": [{"id": x["id"], "name": x["name"]} for x in lists]}
+
+    @app.post("/ui/api/plan/add", dependencies=user_dep)
+    def plan_add(body: PlanAddIn, user=Depends(auth)):
+        try:
+            res = planner.add(pipeline.mealie, pipeline.state, body.list_id,
+                              [i.model_dump() for i in body.items],
+                              [e.model_dump() for e in body.entries])
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        log.info("%s added the plan to shopping list %s: %s", who(user), body.list_id, res)
         return res
 
     @app.exception_handler(RulesError)

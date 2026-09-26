@@ -20,9 +20,10 @@ import logging
 
 import httpx
 
+from . import bought
 from .foods import norm
 from .mealie import Mealie
-from .state import parse_ts
+from .state import State, parse_ts
 
 log = logging.getLogger(__name__)
 
@@ -117,8 +118,9 @@ def build(mealie: Mealie, ha: HomeAssistant | None, list_id: str | None = None,
 
 
 def tick(mealie: Mealie, ha: HomeAssistant | None, list_id: str, mealie_ids: list[str],
-         ha_ids: list[str]) -> dict:
-    """Tick off exactly these items. A dead Home Assistant never costs the Mealie half."""
+         ha_ids: list[str], state: State | None = None) -> dict:
+    """Tick off exactly these items. A dead Home Assistant never costs the Mealie half.
+    With `state`, what was ticked is recorded as bought now."""
     wanted = set(mealie_ids)
     items = [i for i in (mealie.shopping_list(list_id).get("listItems") or [])
              if i["id"] in wanted and not i.get("checked")]
@@ -126,12 +128,20 @@ def tick(mealie: Mealie, ha: HomeAssistant | None, list_id: str, mealie_ids: lis
     if items:
         res = mealie.tick_shopping_items(items) or {}
         done_m = len(res.get("updatedItems") or [])
-    done_h, failed = 0, []
-    if ha and ha.enabled:
+    done_h, failed, ha_names = 0, [], []
+    if ha and ha.enabled and ha_ids:
+        try:
+            names = {it.get("id"): it.get("name") for it in ha.items()}
+        except Exception:
+            names = {}                      # only the bought record misses out
         for hid in ha_ids:
             try:
                 ha.tick(hid)
                 done_h += 1
+                if names.get(hid):
+                    ha_names.append(names[hid])
             except Exception as e:
                 failed.append(f"{hid}: {type(e).__name__}")
+    if state is not None:
+        bought.record_ticked(state, items if done_m else [], ha_names)
     return {"mealie": done_m, "mealie_asked": len(items), "ha": done_h, "ha_failed": failed}

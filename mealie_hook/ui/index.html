@@ -3,97 +3,149 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Recipe Rules</title>
+<title>Mealie Toolkit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
+/* Mealie's look (Vuetify, default Mealie theme): values read from the running instance. */
 :root {
-  --bg: #f6f5f2; --panel: #ffffff; --text: #1f1d1a; --muted: #6b665e; --line: #e2ded6;
-  --accent: #2f6f4f; --accent-text: #ffffff; --warn: #9a5b00; --warn-bg: #fff4e0;
-  --bad: #a1261d; --bad-bg: #fde8e6; --add: #1f6b36; --add-bg: #e5f5e9; --del-bg: #fbe9e7;
-  --chip: #eceae4; --code: #f1efea;
+  --primary: #e58325; --info: #1976d2; --accent: #007a99; --secondary: #973542;
+  --success: #43a047; --warning: #ff6d00; --error: #ef5350;
+  --bg: #ffffff; --panel: #ffffff; --text: rgba(0, 0, 0, .87); --muted: rgba(0, 0, 0, .6);
+  --line: rgba(0, 0, 0, .12); --tint: rgba(0, 0, 0, .04); --code: #f5f5f5;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 1px 3px 1px rgba(0, 0, 0, .15);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, .3), 0 2px 6px 2px rgba(0, 0, 0, .15);
+  --warn-bg: #fff3e0; --warn-text: #b24c00; --bad-bg: #fdecea; --bad-text: #c62828;
+  --add: #2e7d32; --add-bg: #e8f5e9; --del-bg: #fdecea;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #161514; --panel: #201f1d; --text: #ecE9e3; --muted: #a39e95; --line: #34322e;
-    --accent: #5fb389; --accent-text: #0e1a13; --warn: #f0b458; --warn-bg: #2e2412;
-    --bad: #f08a80; --bad-bg: #331a17; --add: #7fd39a; --add-bg: #15291c; --del-bg: #33201d;
-    --chip: #2c2a27; --code: #1a1918;
+    --bg: #1e1e1e; --panel: #252525; --text: #ffffff; --muted: rgba(255, 255, 255, .7);
+    --line: rgba(255, 255, 255, .12); --tint: rgba(255, 255, 255, .06); --code: #2c2c2c;
+    --warn-bg: #3a2410; --warn-text: #ffb74d; --bad-bg: #3b1d1c; --bad-text: #ef9a9a;
+    --add: #81c784; --add-bg: #1b2e1c; --del-bg: #3b1d1c;
   }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
-  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-  border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
-header h1 { font-size: 17px; margin: 0; flex: 1; }
-header .user { color: var(--muted); font-size: 13px; }
-nav { display: flex; gap: 4px; padding: 8px 16px 0; overflow-x: auto; border-bottom: 1px solid var(--line);
-  background: var(--panel); }
-nav button { border: 0; background: none; padding: 8px 12px; font: inherit; color: var(--muted);
-  border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
-nav button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  font: 15px/1.5 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--primary); }
+input[type=checkbox] { accent-color: var(--primary); width: 17px; height: 17px; vertical-align: -3px; }
+header { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px;
+  background: var(--primary); color: #fff; box-shadow: var(--shadow-raised); position: sticky; top: 0; z-index: 3; }
+header .brand { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-size: 20px; }
+header .brand svg { width: 30px; height: 30px; fill: #fff; }
+header h1 { font-size: 16px; font-weight: 400; margin: 0; flex: 1; opacity: .9; }
+header h1::before { content: "·"; margin-right: 10px; }
+header .user { font-size: 14px; opacity: .9; }
+nav { display: flex; gap: 0; padding: 0 16px; overflow-x: auto; border-bottom: 1px solid var(--line);
+  background: var(--bg); }
+nav button { border: 0; background: none; height: 48px; padding: 0 16px; font: inherit; font-size: 14px;
+  letter-spacing: .1px; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+nav button:hover { background: var(--tint); }
+nav button.on { color: var(--text); border-bottom-color: currentColor; font-weight: 500; }
+main { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
 section.tab { display: none; } section.tab.on { display: block; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
-  margin-bottom: 14px; }
-h2 { font-size: 16px; margin: 0 0 10px; }
-h3 { font-size: 14px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.panel { background: var(--panel); border-radius: 2px; box-shadow: var(--shadow); padding: 16px;
+  margin-bottom: 16px; }
+h2 { font-size: 18px; font-weight: 500; margin: 0 0 10px; }
+h3 { font-size: 13px; font-weight: 500; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .muted { color: var(--muted); } .small { font-size: 13px; }
-button.btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--text);
-  padding: 7px 12px; border-radius: 8px; cursor: pointer; }
-button.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-button.btn.danger { color: var(--bad); }
-button.btn:disabled { opacity: .5; cursor: default; }
+button.btn { font: inherit; font-size: 14px; font-weight: 500; letter-spacing: .1px; border: 1px solid var(--text);
+  background: transparent; color: var(--text); padding: 6px 16px; border-radius: 24px; cursor: pointer; }
+button.btn:hover:not(:disabled) { background: var(--tint); }
+button.btn.primary { background: var(--info); color: #fff; border-color: var(--info); border-radius: 4px;
+  box-shadow: var(--shadow-raised); padding: 8px 16px; }
+button.btn.primary:hover:not(:disabled) { background: #1565c0; }
+button.btn.danger { color: var(--error); border-color: var(--error); }
+button.btn:disabled { opacity: .4; cursor: default; box-shadow: none; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
 ul.items { list-style: none; margin: 0; padding: 0; }
-ul.items li { padding: 5px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; justify-content: space-between; }
+ul.items li { padding: 6px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; justify-content: space-between; }
 ul.items li:last-child { border-bottom: 0; }
 ul.items li.dup { color: var(--muted); text-decoration: line-through; }
 .label { color: var(--muted); font-size: 12px; white-space: nowrap; }
-textarea, input[type=text], select { font: inherit; color: var(--text); background: var(--panel);
-  border: 1px solid var(--line); border-radius: 8px; padding: 8px; width: 100%; }
+textarea, input[type=text], input[type=date], select { font: inherit; color: var(--text); background: var(--tint);
+  border: 0; border-bottom: 1px solid var(--muted); border-radius: 4px 4px 0 0; padding: 8px 10px; width: 100%; }
+textarea:focus, input:focus, select:focus { outline: none; border-bottom: 2px solid var(--primary); }
+input[type=date] { color-scheme: light dark; }
 textarea.code, pre { font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
-pre { background: var(--code); border-radius: 8px; padding: 10px; overflow-x: auto; white-space: pre-wrap;
+pre { background: var(--code); border-radius: 4px; padding: 10px; overflow-x: auto; white-space: pre-wrap;
   margin: 6px 0; }
 .diff .add { background: var(--add-bg); color: var(--add); display: block; }
-.diff .del { background: var(--del-bg); color: var(--bad); display: block; }
+.diff .del { background: var(--del-bg); color: var(--bad-text); display: block; }
 .diff .hunk { color: var(--muted); display: block; }
-.note { padding: 8px 10px; border-radius: 8px; margin: 6px 0; font-size: 14px; }
-.note.warn { background: var(--warn-bg); color: var(--warn); }
-.note.bad { background: var(--bad-bg); color: var(--bad); }
-.note.info { background: var(--chip); color: var(--muted); }
-.chip { display: inline-block; background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12px;
-  margin: 1px 2px 1px 0; }
+.note { padding: 10px 12px; border-radius: 4px; margin: 6px 0; font-size: 14px; }
+.note.warn { background: var(--warn-bg); color: var(--warn-text); }
+.note.bad { background: var(--bad-bg); color: var(--bad-text); }
+.note.info { background: var(--tint); color: var(--muted); }
+.chip { display: inline-flex; align-items: center; height: 24px; background: var(--accent); color: #fff; border-radius: 4px;
+  padding: 0 8px; font-size: 12px; margin: 1px 2px 1px 0; white-space: nowrap; }
+.chip.quiet { background: var(--tint); color: var(--muted); }
+.chip.ok { background: var(--success); }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
-td.name { white-space: nowrap; font-weight: 600; }
-.missing { color: var(--bad); }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+td.name { white-space: nowrap; font-weight: 500; }
+.missing { color: var(--error); }
 .table-wrap { overflow-x: auto; }
 .msg { margin: 10px 0; }
 .msg.user { text-align: right; }
 .msg .bubble { display: inline-block; max-width: 85%; padding: 8px 12px; border-radius: 12px; text-align: left;
   white-space: pre-wrap; }
-.msg.user .bubble { background: var(--accent); color: var(--accent-text); }
-.msg.bot .bubble { background: var(--panel); border: 1px solid var(--line); }
-.proposal { margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--panel); }
-details summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+.msg.user .bubble { background: var(--primary); color: #fff; }
+.msg.bot .bubble { background: var(--panel); box-shadow: var(--shadow); }
+.proposal { margin-top: 8px; border-radius: 2px; padding: 12px; background: var(--panel); box-shadow: var(--shadow); }
+details summary { cursor: pointer; font-weight: 500; margin: 6px 0; }
 .card { border-bottom: 1px solid var(--line); padding: 10px 0; }
 .card:last-child { border-bottom: 0; }
-.card a { color: var(--accent); font-weight: 600; text-decoration: none; }
-.banner { padding: 12px 16px; background: var(--warn-bg); color: var(--warn); }
+.card a { color: var(--text); font-weight: 500; text-decoration: none; }
+.card a:hover { color: var(--primary); }
+.banner { padding: 12px 16px; background: var(--warn-bg); color: var(--warn-text); }
+.day { margin: 24px 0 8px; font-size: 18px; }
+.day.today { color: var(--primary); }
+.plan-card.off { opacity: .5; }
+.plan-card .head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.plan-card .head a { color: var(--text); font-size: 17px; font-weight: 500; text-decoration: none; }
+.plan-card .head a:hover { color: var(--primary); }
+.size { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.size input { width: 4.5em; text-align: center; padding: 5px; font: inherit; color: var(--text);
+  background: var(--tint); border: 0; border-bottom: 1px solid var(--muted); border-radius: 4px 4px 0 0; }
+.size .step { width: 34px; height: 34px; padding: 0; border-radius: 50%; font-size: 18px; line-height: 1; }
+.size input { -moz-appearance: textfield; appearance: textfield; }
+.size input::-webkit-inner-spin-button, .size input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+ul.ings { list-style: none; margin: 0; padding: 0; columns: 2 280px; column-gap: 24px; font-size: 14px; }
+ul.ings li { break-inside: avoid; padding: 2px 0; }
+ul.combined { list-style: none; margin: 0; padding: 0; }
+ul.combined li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+ul.combined li:last-child { border-bottom: 0; }
+ul.combined label { display: flex; gap: 12px; align-items: baseline; cursor: pointer; }
+ul.combined li.have .what, ul.combined li.have .qty { color: var(--muted); text-decoration: line-through; }
+ul.combined .qty { font-weight: 500; margin-left: 6px; }
+ul.combined .from { color: var(--muted); font-size: 12.5px; }
+ul.combined .body { flex: 1; min-width: 0; }
+ul.combined .bought { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.sect { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 10px 0 2px; }
+.sub { margin: 10px 0 0 4px; padding-left: 12px; border-left: 3px solid var(--line); }
+.sub a { color: var(--text); text-decoration: none; font-weight: 500; }
+.sub a:hover { color: var(--primary); }
+.linkish { border: 0; background: none; color: var(--primary); cursor: pointer; font: inherit; font-size: 13px; padding: 0; }
 .spin::after { content: " …"; animation: dots 1.2s steps(4) infinite; }
 @keyframes dots { 0% { content: ""; } 25% { content: " ."; } 50% { content: " .."; } 75% { content: " ..."; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Recipe rules</h1>
+  <a class="brand" href="/" title="Back to Mealie"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.1,13.34L3.91,9.16C2.35,7.59 2.35,5.06 3.91,3.5L10.93,10.5L8.1,13.34M13.41,13L20.29,19.88L18.88,21.29L12,14.41L5.12,21.29L3.71,19.88L13.36,10.22L13.16,10C12.38,9.23 12.38,7.97 13.16,7.19L17.5,2.82L18.43,3.74L15.19,7L16.15,7.94L19.39,4.69L20.31,5.61L17.06,8.85L18,9.81L21.26,6.56L22.18,7.5L17.81,11.84C17.03,12.62 15.77,12.62 15,11.84L14.78,11.64L13.41,13Z"/></svg>Mealie</a>
+  <h1>Toolkit</h1>
   <span class="user" id="user"></span>
 </header>
 <div id="banner" class="banner" hidden></div>
 <nav id="tabs">
+  <button data-tab="plan">Plan → list</button>
   <button data-tab="shopping">Shopping</button>
   <button data-tab="review">Needs review</button>
   <button data-tab="rules">Rules</button>
@@ -101,6 +153,36 @@ details summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
   <button data-tab="history">History</button>
 </nav>
 <main>
+  <section class="tab" id="tab-plan">
+    <div class="panel">
+      <div class="row">
+        <label class="small row" style="gap:4px">from
+          <input type="date" id="plan-start" style="width:auto;padding:4px 6px"></label>
+        <label class="small row" style="gap:4px">to
+          <input type="date" id="plan-end" style="width:auto;padding:4px 6px"></label>
+        <span style="flex:1"></span>
+        <button class="btn primary" id="plan-review-go" disabled>Review combined list ↓</button>
+      </div>
+      <div id="plan-status" class="small muted" style="margin-top:8px"></div>
+      <div class="small muted">Set each meal's size, then check the combined list below against what you have.
+        Sizes start at the default servings, or the whole recipe when it only states a yield; the size you last used
+        for a recipe is remembered. Meals already added start unticked.</div>
+    </div>
+    <div id="plan-entries"></div>
+    <div class="panel" id="plan-review" hidden>
+      <h2>Combined list <span class="muted small" id="plan-count"></span></h2>
+      <p class="small muted">Everything the ticked meals need, added up. Untick what you already have enough of.
+        Spoonfuls, pinches and handfuls show no amount: they are not bought by the spoon.</p>
+      <div id="plan-combined"></div>
+      <div class="row" style="margin-top:12px">
+        <span style="flex:1"></span>
+        <select id="plan-list" style="width:auto"></select>
+        <button class="btn primary" id="plan-add" disabled>Add to list</button>
+      </div>
+      <div id="plan-add-status" class="small muted" style="margin-top:8px"></div>
+    </div>
+  </section>
+
   <section class="tab" id="tab-shopping">
     <div class="panel">
       <div class="row">
@@ -180,7 +262,7 @@ function el(tag, attrs = {}, ...kids) {
     else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
     else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
   }
-  for (const k of kids.flat()) if (k != null) e.append(k instanceof Node ? k : String(k));
+  for (const k of kids.flat(Infinity)) if (k != null) e.append(k instanceof Node ? k : String(k));
   return e;
 }
 async function api(path, opts = {}) {
@@ -214,7 +296,219 @@ function show(tab) {
   if (loaders[tab]) loaders[tab]();
 }
 document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => { location.hash = b.dataset.tab; }));
-window.addEventListener("hashchange", () => show(location.hash.slice(1) || "shopping"));
+window.addEventListener("hashchange", () => show(location.hash.slice(1) || "plan"));
+
+// ------------------------------------------------------------------------ plan -> list
+let plan = null;
+const have = new Map();                  // combined-row key -> ticked, once the user has touched it
+const METRIC = new Set(["g", "kg", "ml", "l", "cl"]);
+// bought by the jar or bunch, never by the spoon: no amount on the combined list
+const NO_AMOUNT = new Set(["tsp", "tbsp", "teaspoon", "tablespoon", "pinch", "dash", "handful", "sprig", "knob"]);
+const UNIT_ALIAS = { gram: "g", grams: "g", cloves: "clove", teaspoon: "tsp", tablespoon: "tbsp" };
+const FRACS = [[0, ""], [0.25, "¼"], [1 / 3, "⅓"], [0.5, "½"], [2 / 3, "⅔"], [0.75, "¾"], [1, ""]];
+function fmtQty(q, unit) {
+  if (!q) return "";
+  if (q >= 20 || (METRIC.has(unit) && q >= 10)) return String(Math.round(q));
+  if (METRIC.has(unit)) return String(Math.round(q * 10) / 10);
+  const w = Math.floor(q), f = q - w;
+  const [v, glyph] = FRACS.reduce((a, b) => (Math.abs(b[0] - f) < Math.abs(a[0] - f) ? b : a));
+  if (Math.abs(v - f) <= 0.04) { const whole = v === 1 ? w + 1 : w; return (whole ? String(whole) : "") + glyph || "0"; }
+  return String(Math.round(q * 10) / 10);
+}
+function ingText(r, scale) {
+  const q = r.qty * scale;
+  const unit = q > 1 && r.unit_plural ? r.unit_plural : r.unit;
+  if (r.food) {
+    const food = q > 1 && !r.unit && r.food_plural ? r.food_plural : r.food;
+    return [fmtQty(q, r.unit), unit, food].filter(Boolean).join(" ") + (r.note ? `, ${r.note}` : "");
+  }
+  if (r.qty) return [fmtQty(q, r.unit), unit, r.text].filter(Boolean).join(" ");
+  return r.text;
+}
+const scaleOf = (e) => e.amount / e.recipe.base.amount;
+const fmtScale = (s) => "×" + (Math.round(s * 100) / 100);
+const rowKey = (r) => r.food ? "f:" + r.food.toLowerCase() : "t:" + r.text.toLowerCase();
+const normUnit = (u) => UNIT_ALIAS[(u || "").toLowerCase()] || (u || "").toLowerCase();
+
+function ingList(b, scale) {
+  return b.sections.map((s) => [
+    s.title ? el("div", { class: "sect" }, s.title) : null,
+    el("ul", { class: "ings" }, s.rows.map((r) => el("li", {}, ingText(r, scale),
+      r.on_hand ? el("span", { class: "label" }, " (on hand)") : null)))]);
+}
+function subBlocks(b, scale) {
+  return b.subs.map((sb) => el("div", { class: "sub" },
+    el("div", { class: "small" }, el("a", { href: sb.url, target: "_blank", rel: "noopener" }, sb.name),
+      el("span", { class: "muted" }, ` · sub-recipe ${fmtScale(scale * sb.factor)}`)),
+    ingList(sb, scale * sb.factor), subBlocks(sb, scale * sb.factor)));
+}
+function planCard(e) {
+  const card = el("div");
+  const render = () => {
+    card.className = "panel plan-card" + (e.include ? "" : " off");
+    const b = e.recipe, base = b.base, scale = scaleOf(e);
+    const step = base.kind === "batch" ? 0.5 : 1;
+    const setAmount = (v) => { v = Math.round(Number(v) * 100) / 100; if (v > 0) { e.amount = v; render(); planChanged(); } };
+    const input = el("input", { type: "number", min: step, step, value: e.amount, "aria-label": "size",
+      onchange: () => setAmount(input.value) });
+    const include = el("input", { type: "checkbox", checked: e.include, onchange: () => { e.include = include.checked; render(); planChanged(); } });
+    card.replaceChildren(...[
+      el("div", { class: "head" }, el("label", { class: "row", style: "gap:6px" }, include, el("span", { class: "chip" }, e.type || "meal")),
+        el("a", { href: b.url, target: "_blank", rel: "noopener" }, b.name),
+        e.added ? el("span", { class: "chip ok", title: new Date(e.added).toLocaleString() }, "added " + new Date(e.added).toLocaleDateString(undefined, { day: "numeric", month: "short" })) : null),
+      el("div", { class: "size" },
+        el("button", { class: "btn step", title: "less", onclick: () => setAmount(Math.max(step, e.amount - step)) }, "−"),
+        input,
+        el("button", { class: "btn step", title: "more", onclick: () => setAmount(e.amount + step) }, "+"),
+        el("span", { class: "small muted" }, base.kind === "batch" ? "× recipe (no size stated)" : `${base.unit} · recipe makes ${base.amount}`),
+        el("span", { class: "chip quiet" }, fmtScale(scale)),
+        el("button", { class: "btn small", disabled: e.amount === base.amount, onclick: () => setAmount(base.amount) }, "Recipe default")),
+      e.include ? [ingList(b, scale), subBlocks(b, scale)] : null].flat(Infinity).filter((k) => k != null));
+  };
+  render();
+  return card;
+}
+
+// Every ingredient of the ticked meals, keyed by food (or by the text of an unparsed row).
+function combine() {
+  const rows = new Map();
+  const walk = (b, scale, meal) => {
+    for (const r of b.sections.flatMap((s) => s.rows)) {
+      const key = rowKey(r);
+      let g = rows.get(key);
+      if (!g) rows.set(key, g = { key, food: r.food, plural: r.food_plural, text: r.text, label: r.label,
+        on_hand: r.on_hand, bought: null, amounts: new Map(), unitPlural: {}, from: [] });
+      if (r.bought && (!g.bought || r.bought > g.bought)) g.bought = r.bought;
+      const q = r.qty * scale, u = normUnit(r.unit);
+      if (q && !NO_AMOUNT.has(u)) {
+        g.amounts.set(u, (g.amounts.get(u) || 0) + q);
+        if (r.unit_plural) g.unitPlural[u] = r.unit_plural;
+      }
+      g.from.push({ meal, text: ingText(r, scale) });
+    }
+    b.subs.forEach((sb) => walk(sb, scale * sb.factor, `${meal} (${sb.name})`));
+  };
+  for (const e of plan.entries) if (e.recipe && e.include) walk(e.recipe, scaleOf(e), e.recipe.name);
+  return [...rows.values()];
+}
+const ticked = (g) => have.has(g.key) ? have.get(g.key) : !g.on_hand;
+function amountText(g) {
+  return [...g.amounts].map(([u, q]) => [fmtQty(q, u), q > 1 && g.unitPlural[u] ? g.unitPlural[u] : u].filter(Boolean).join(" ")).join(" + ");
+}
+function nameText(g) {
+  if (!g.food) return g.text;
+  const count = g.amounts.get("") || 0;
+  return count > 1 && g.plural ? g.plural : g.food;
+}
+function boughtText(iso) {
+  const day = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const when = new Date(iso), days = Math.round((day(new Date()) - day(when)) / 86400000);
+  if (days <= 0) return "bought today";
+  if (days === 1) return "bought yesterday";
+  if (days < 14) return `bought ${days} days ago`;
+  return "bought " + when.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+function renderCombined() {
+  const groups = combine();
+  const box = $("#plan-combined");
+  $("#plan-review").hidden = !groups.length;
+  const byLabel = new Map();
+  for (const g of groups.sort((a, b) => nameText(a).localeCompare(nameText(b)))) {
+    const l = g.label || "Other";
+    if (!byLabel.has(l)) byLabel.set(l, []);
+    byLabel.get(l).push(g);
+  }
+  const labels = [...byLabel.keys()].sort((a, b) => (a === "Other") - (b === "Other") || a.localeCompare(b));
+  box.replaceChildren(...labels.flatMap((l) => [el("h3", {}, l), el("ul", { class: "combined" }, byLabel.get(l).map((g) => {
+    const box = el("input", { type: "checkbox", checked: ticked(g), onchange: () => { have.set(g.key, box.checked); li.classList.toggle("have", !box.checked); planSummary(); } });
+    const from = g.from.length > 1 ? g.from.map((f) => `${f.meal}: ${f.text}`).join(" · ") : g.from[0].meal;
+    const li = el("li", { class: ticked(g) ? "" : "have" }, el("label", {}, box, el("div", { class: "body" },
+      el("span", { class: "what" }, nameText(g)), amountText(g) ? el("span", { class: "qty" }, amountText(g)) : null,
+      g.on_hand ? el("span", { class: "label" }, " (on hand)") : null,
+      el("div", { class: "from" }, from)),
+      g.bought ? el("span", { class: "bought", title: new Date(g.bought).toLocaleString() }, boughtText(g.bought)) : null));
+    return li;
+  }))]));
+  planSummary();
+}
+function planChanged() { renderCombined(); }
+
+function planItems() {
+  const buy = new Set(combine().filter(ticked).map((g) => g.key));
+  const items = [], entries = [];
+  const walk = (b, scale) => {
+    const refs = b.sections.flatMap((s) => s.rows).filter((r) => r.ref && buy.has(rowKey(r))).map((r) => r.ref);
+    if (refs.length) items.push({ slug: b.slug, scale: Math.round(scale * 10000) / 10000, refs });
+    b.subs.forEach((sb) => walk(sb, scale * sb.factor));
+  };
+  for (const e of plan.entries) {
+    if (!e.recipe || !e.include) continue;
+    const before = items.length;
+    walk(e.recipe, scaleOf(e));
+    if (items.length > before) entries.push({ id: e.id, date: e.date, slug: e.recipe.slug, scale: Math.round(scaleOf(e) * 10000) / 10000 });
+  }
+  return { items, entries, buy: buy.size };
+}
+function planSummary() {
+  const all = combine(), { entries, buy } = planItems();
+  const meals = plan.entries.filter((e) => e.recipe && e.include).length;
+  $("#plan-count").textContent = `(${buy} to buy of ${all.length})`;
+  const add = $("#plan-add");
+  add.disabled = !entries.length;
+  add.textContent = entries.length ? `Add ${buy} item${buy === 1 ? "" : "s"} to the list` : "Add to list";
+  const go = $("#plan-review-go");
+  go.disabled = !meals;
+  go.textContent = meals ? `Review combined list (${meals} meal${meals === 1 ? "" : "s"}) ↓` : "Review combined list ↓";
+}
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+loaders.plan = async () => {
+  const status = $("#plan-status"), box = $("#plan-entries");
+  if (!$("#plan-start").value) {
+    const t = new Date(); $("#plan-start").value = isoDay(t);
+    t.setDate(t.getDate() + 6); $("#plan-end").value = isoDay(t);
+  }
+  status.textContent = "Loading the plan…";
+  try {
+    const q = new URLSearchParams({ start: $("#plan-start").value, end: $("#plan-end").value });
+    plan = await api("plan?" + q);
+    have.clear();
+    const keep = $("#plan-list").value;
+    $("#plan-list").replaceChildren(...plan.lists.map((l) => el("option", { value: l.id, selected: l.id === keep }, l.name)));
+    $("#plan-list").hidden = plan.lists.length < 2;
+    const days = new Map();
+    for (const e of plan.entries) {
+      e.include = !!e.recipe && !e.added;
+      if (!days.has(e.date)) days.set(e.date, []);
+      days.get(e.date).push(e);
+    }
+    const nice = (d) => new Date(d + "T00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+    const today = isoDay(new Date());
+    box.replaceChildren(...[...days].map(([d, es]) => [el("div", { class: d === today ? "day today" : "day" }, nice(d)),
+      es.map((e) => e.recipe ? planCard(e) : el("div", { class: "panel small muted" }, `${e.type}: ${[e.title, e.text].filter(Boolean).join(" — ") || "(note)"}`))]).flat(Infinity).filter((k) => k != null));
+    if (!plan.entries.length) box.replaceChildren(el("p", { class: "muted" }, "Nothing planned in these dates."));
+    const meals = plan.entries.filter((e) => e.recipe).length;
+    status.textContent = plan.lists.length ? `${meals} planned meal${meals === 1 ? "" : "s"}` : "No shopping lists in Mealie.";
+    renderCombined();
+  } catch (e) { status.textContent = e.message; }
+};
+$("#plan-start").addEventListener("change", loaders.plan);
+$("#plan-end").addEventListener("change", loaders.plan);
+$("#plan-review-go").addEventListener("click", () => $("#plan-review").scrollIntoView({ behavior: "smooth" }));
+$("#plan-add").addEventListener("click", async () => {
+  const { items, entries, buy } = planItems();
+  const list = plan.lists.find((l) => l.id === $("#plan-list").value) || plan.lists[0];
+  if (!list) return;
+  $("#plan-add").disabled = true;
+  try {
+    const r = await api("plan/add", { method: "POST", body: { list_id: list.id, items, entries } });
+    await loaders.plan();
+    $("#plan-status").replaceChildren(
+      `Added ${buy} item${buy === 1 ? "" : "s"} from ${entries.length} meal${entries.length === 1 ? "" : "s"} to ${list.name}. `,
+      r.missing ? `${r.missing} ingredient${r.missing === 1 ? "" : "s"} had changed in Mealie since this page loaded and were skipped. ` : "",
+      el("a", { href: "#shopping" }, "Go to Shopping →"));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) { $("#plan-add-status").textContent = e.message; planSummary(); }
+});
 
 // --------------------------------------------------------------------------- shopping
 let shop = null;
@@ -461,7 +755,7 @@ loaders.history = async () => {
 // ------------------------------------------------------------------------------- boot
 (async () => {
   try { const me = await api("me"); $("#user").textContent = me.username; } catch {}
-  show(location.hash.slice(1) || "shopping");
+  show(location.hash.slice(1) || "plan");
 })();
 </script>
 </body>

@@ -55,6 +55,25 @@ def test_happy_path_writes_once(make):
     assert pipe.state.latest_snapshot("test-stew") is not None
 
 
+def test_new_units_are_created_with_their_plural(make):
+    script = copy.deepcopy(GOOD)
+    script["IngredientReply"]["rows"][0].update(quantity=2, unit="tins", food="carrots")
+    script["IngredientReply"]["rows"][2].update(quantity=10, unit="g", food="parsnip")
+    pipe, m = make(script)
+    m._units = []                                       # neither unit exists yet
+    pipe.process("test-stew")
+    assert sorted((u["name"], u["pluralName"]) for u in m.created_units) == \
+        [("g", None), ("tin", "tins")]                  # abbreviations get no plural
+
+
+def test_unit_plurals_table():
+    from mealie_hook.foods import ALLOWED_UNITS, UNIT_PLURALS
+    assert UNIT_PLURALS["clove"] == "cloves" and UNIT_PLURALS["bunch"] == "bunches"
+    assert UNIT_PLURALS["punnet"] == "punnets" and UNIT_PLURALS["pinch"] == "pinches"
+    assert not {"g", "kg", "ml", "l", "tsp", "tbsp", "dsp"} & set(UNIT_PLURALS)
+    assert set(UNIT_PLURALS) == ALLOWED_UNITS - {"g", "kg", "ml", "l", "tsp", "tbsp", "dsp"}
+
+
 def test_dry_run_writes_nothing(make):
     pipe, m = make()
     res = pipe.process("test-stew", dry=True)

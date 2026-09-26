@@ -73,7 +73,7 @@ def post(c, path, body=None, **headers):
 
 def test_page_served_without_auth(env):
     r = env["client"](None).get("/ui/")
-    assert r.status_code == 200 and "Recipe rules" in r.text
+    assert r.status_code == 200 and "Mealie Toolkit" in r.text
 
 
 def test_api_needs_login_and_admin(env):

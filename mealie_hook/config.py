@@ -34,6 +34,8 @@ class Config(BaseSettings):
     # Home Assistant's shopping list, shown and ticked alongside Mealie's. Optional.
     ha_url: str = ""
     ha_token: str = ""
+    # Plan -> list: servings a recipe defaults to, when it states its servings.
+    plan_default_servings: float = 2
     max_attempts: int = 3
     dry_run: bool = False
 

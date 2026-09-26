@@ -17,7 +17,9 @@ For every recipe imported from a URL it:
    ("For the sauce") become Mealie section titles, and equipment rows are dropped.
 4. **Matches every food and unit** onto existing Mealie records: plurals, `toasted sesame
    oil` → `sesame oil` + note, `litres` → `l`. A new food is created only when nothing
-   matches, and never with prep words in its name.
+   matches, and never with prep words in its name. A new unit comes only from a fixed list
+   (`ALLOWED_UNITS`) and is created with its plural (`tin` → `tins`; abbreviations such as
+   `g` and `tbsp` have none).
 5. **Files it**: one category, protein/season/character tags, and tools (Qwen), chosen only
    from Mealie's existing vocabulary. Rules in code, keyed on roles from the rules file
    rather than on names: slow cooker ⇒ winter, never both seasons, provenance tags never
@@ -57,12 +59,40 @@ survives a lost `data/` directory.
   false}`, so the shared llama-server keeps its defaults. Typical cost is ~20s for
   ingredients plus ~3s to classify.
 
-## The page: recipes.<domain>/rules/
+## The page: Mealie Toolkit, at recipes.<domain>/rules/
 
-Served by this service, through Caddy, on Mealie's own domain. It uses your Mealie login
+Served by this service, through Caddy, on Mealie's own domain, and styled to match Mealie
+(its default theme, following the system's light or dark setting). It uses your Mealie login
 (the `mealie.access_token` cookie, checked against Mealie on each request) and is for
 Mealie admins only.
 
+- **Plan → list** (the landing tab): replaces Mealie's "add planner to shopping list"
+  dialog, in two steps.
+  1. **Meals**: the planned meals between two dates (default: today plus six days), each
+     with a tick to include it and a size. Recipes that state servings start at
+     `PLAN_DEFAULT_SERVINGS` (2); recipes that only state a yield ("25 items", "6 cakes") or
+     nothing start at the whole recipe. **−/+** changes the size and the listed ingredients
+     follow; **Recipe default** goes back to the recipe's own size. The size last used for a
+     recipe becomes its default next time. Sub-recipes appear as their own blocks at the
+     parent's scale. Meals already added from this page are marked and start unticked, so a
+     top-up shop does not add them twice.
+  2. **Combined list**: every ingredient of the ticked meals added up per food, grouped by
+     aisle, with where each amount comes from ("garlic 3½ cloves: 2 from one, 1½ from the
+     other"). One tick per food means buy it; untick what you already have enough of. Foods
+     marked on hand start unticked. Spoonfuls, pinches, handfuls, sprigs and knobs show no
+     amount, since they are not bought by the spoon. On the right, muted, is when the food
+     was last bought.
+
+  **Add** goes through Mealie's own add-recipe endpoint with each meal's scale and only the
+  ingredients still ticked, so items merge and Mealie's recipe references (and "remove
+  recipe" on the list) work as usual. One Mealie quirk: when a recipe lists the same food
+  twice, Mealie adds the second one unscaled, so its amount on Mealie's list is off for any
+  size other than ×1 (the combined list is right).
+
+  **Last bought** means last ticked off a shopping list. Every load of this tab or Shopping
+  copies Mealie's ticked items (their food and tick time) into `data/state.json`, so the
+  record outlives Mealie's "delete checked items". Home Assistant items count only when
+  ticked from the Shopping tab, matched to a food by name or plural.
 - **Shopping**: the Mealie shopping list and Home Assistant's, merged into one list of
   shoppable names for pasting into a supermarket search. Home Assistant items a Mealie item
   already covers are crossed out. **Copy** puts the list on the clipboard. **Tick all
@@ -110,6 +140,8 @@ mealie_hook/
   chat.py         rules editing via Qwen: proposal -> validate -> diff
   editor.md       the rules editor's own instructions (not editable from the page)
   shopping.py     Mealie + Home Assistant shopping export and tick-off
+  planner.py      Plan -> list: the meal plan, scaled per meal, onto a shopping list
+  bought.py       when each food was last bought (ticked off a list)
   review.py       the Needs review queue
   scrape.py       scrape checks, page extraction (BeautifulSoup), nutrition
   ingredients.py  model call + deterministic post-processing

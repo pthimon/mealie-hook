@@ -11,7 +11,7 @@ import time
 
 from . import MARKER_KEY, __version__, classify, ingredients, labels, scrape
 from .config import Config
-from .foods import Vocab, norm
+from .foods import UNIT_PLURALS, Vocab, norm
 from .ingredients import NEW
 from .llm import LLM, LLMError
 from .mealie import Mealie, MealieError
@@ -321,7 +321,9 @@ class Pipeline:
 
     def _create_records(self, r: dict, new_foods: list[str], new_units: list[str],
                         plan: dict, label_recs: dict):
-        units = {norm(n): self._ensure(self.mealie.units, self.mealie.create_unit, n)
+        units = {norm(n): self._ensure(
+                     self.mealie.units,
+                     lambda n: self.mealie.create_unit(n, UNIT_PLURALS.get(n)), n)
                  for n in new_units}
         foods = {}
         for name in new_foods:
