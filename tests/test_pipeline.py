@@ -4,97 +4,13 @@ import json
 import pytest
 
 from mealie_hook import MARKER_KEY
-from mealie_hook.config import Config
+from mealie_hook.config import ROOT, Config
 from mealie_hook.pipeline import REVIEW_NOTE_TITLE, Pipeline
+from mealie_hook.rules import RulesStore
 from mealie_hook.server import Worker, handle_event, parse_document_data
 from mealie_hook.state import State
 
-
-def raw(text):
-    return {"note": text, "originalText": text, "food": None, "unit": None, "quantity": 0}
-
-
-def base_recipe():
-    return {
-        "slug": "test-stew", "name": "Test stew", "orgURL": "https://www.bbcgoodfood.com/x",
-        "recipeServings": 4, "createdAt": "2030-01-01T00:00:00Z", "dateUpdated": "t1",
-        "recipeIngredient": [raw("2 carrots"), raw("For the topping"), raw("1 parsnip")],
-        "recipeInstructions": [{"text": "Cook everything."}],
-        "nutrition": {k: "1" for k in ["calories", "proteinContent", "fatContent",
-                                        "saturatedFatContent", "carbohydrateContent",
-                                        "sugarContent", "fiberContent", "sodiumContent"]},
-        "settings": {"showNutrition": False}, "tags": [], "tools": [], "recipeCategory": [],
-        "notes": [], "extras": {},
-    }
-
-
-class FakeMealie:
-    def __init__(self):
-        self.recipes_by_slug = {"test-stew": base_recipe()}
-        self._foods = [{"id": "f1", "name": "carrot", "label": {"name": "Fruit & Veg"}}]
-        self._units = [{"id": "u1", "name": "g"}]
-        self._tags = [{"id": "t1", "name": "Winter"}, {"id": "t2", "name": "Vegetables"},
-                      {"id": "t3", "name": "Food for Life Cookbook"}]
-        self.puts, self.created_foods, self.created_tags = [], [], []
-        self.edit_during_processing = False
-
-    def recipes(self):
-        return list(self.recipes_by_slug.values())
-
-    def recipe(self, slug):
-        r = copy.deepcopy(self.recipes_by_slug[slug])
-        if self.edit_during_processing and self.puts == [] and getattr(self, "_reads", 0) >= 1:
-            r["dateUpdated"] = "t2"
-        self._reads = getattr(self, "_reads", 0) + 1
-        return r
-
-    def put_recipe(self, slug, data):
-        self.puts.append(copy.deepcopy(data))
-        self.recipes_by_slug[slug] = data
-
-    def foods(self):
-        return self._foods
-
-    def units(self):
-        return self._units
-
-    def labels(self):
-        return [{"id": "l1", "name": "Fruit & Veg"}, {"id": "l2", "name": "Dry Goods"}]
-
-    def categories(self):
-        return [{"id": "c1", "name": "Dinner"}, {"id": "c2", "name": "Lunch"}]
-
-    def tags(self):
-        return self._tags
-
-    def tools(self):
-        return [{"id": "o1", "name": "Slow Cooker"}]
-
-    def create_food(self, name, plural=None, label_id=None):
-        rec = {"id": f"new-{name}", "name": name, "pluralName": plural, "labelId": label_id}
-        self.created_foods.append(rec)
-        return rec
-
-    def create_unit(self, name):
-        return {"id": f"new-{name}", "name": name}
-
-    def create_tag(self, name):
-        rec = {"id": "t-review", "name": name}
-        self.created_tags.append(rec)
-        self._tags.append(rec)
-        return rec
-
-
-class FakeLLM:
-    """Answers each call from a script, keyed by the reply model's name."""
-
-    def __init__(self, **script):
-        self.script = script
-        self.calls = []
-
-    def structured(self, messages, reply, name, **_):
-        self.calls.append(name)
-        return reply.model_validate(self.script[reply.__name__])
+from fakes import FakeLLM, FakeMealie, base_recipe, raw
 
 
 GOOD = dict(
@@ -115,7 +31,8 @@ def make(tmp_path):
     def _make(llm_script=GOOD, **cfg):
         m = FakeMealie()
         c = Config(data_dir=tmp_path, process_since="2029-01-01T00:00:00Z", **cfg)
-        return Pipeline(c, m, FakeLLM(**llm_script), State(tmp_path)), m
+        return Pipeline(c, m, FakeLLM(**llm_script), State(tmp_path),
+                        RulesStore(tmp_path / "rules", ROOT / "rules")), m
     return _make
 
 

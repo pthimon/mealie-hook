@@ -12,17 +12,11 @@ from dataclasses import dataclass, field
 from .foods import loose, plural_candidates
 from .llm import LLM
 from .models import classification_reply
+from .rules import Vocabulary
 
 # The appliance, not the technique: "slow-cooked" chicken done in a casserole in the oven
 # is not a Slow Cooker recipe.
 _SLOW_COOK = re.compile(r"slow[- ]?cooker", re.I)
-
-
-# Character tags describe sweet, breakfast and snack recipes. Across the 269 hand-filed
-# recipes these are (all but once) never on a Dinner or Lunch; Curry, Nuts & Seeds,
-# Fermented and Frozen do appear on mains, so they are not listed.
-NOT_ON_MAINS = {"Savoury", "Dairy", "Fruit", "Oats", "Chocolate", "Citrus"}
-MAINS = {"Dinner", "Lunch"}
 
 
 def recipe_brief(recipe: dict, equipment: list[str]) -> dict:
@@ -78,14 +72,23 @@ def match_tag(name: str, known: set[str]) -> str | None:
 
 
 def apply_rules(c: Classification, recipe: dict, known_tags: set[str],
-                known_tools: set[str], banned_tags: set[str]) -> Classification:
-    """House rules that must hold whatever the model said. Returns a new Classification."""
+                known_tools: set[str], banned_tags: set[str], vocab: Vocabulary) -> Classification:
+    """House rules that must hold whatever the model said. Returns a new Classification.
+
+    Every rule keys on a ROLE from the vocabulary, never on a name, so renaming a tag in
+    Mealie and in the vocabulary keeps the rule working; drift() reports a rule whose role
+    has no live name.
+    """
     tags = [t for t in dict.fromkeys(c.tags) if t in known_tags and t not in banned_tags]
     tools = [t for t in dict.fromkeys(c.tools) if t in known_tools]
     flags = list(c.flags)
+    mains = set(vocab.with_role("categories", "main"))
+    summer = [t for t in vocab.with_role("tags", "summer") if t in known_tags]
+    winter = [t for t in vocab.with_role("tags", "winter") if t in known_tags]
+    slow = [t for t in vocab.with_role("tools", "slow-cooker") if t in known_tools]
 
     proposal = (c.new_protein or "").strip()
-    if proposal and c.category in MAINS:
+    if proposal and c.category in mains:
         existing = match_tag(proposal, known_tags - banned_tags)
         if existing:
             if existing not in tags:
@@ -98,21 +101,22 @@ def apply_rules(c: Classification, recipe: dict, known_tags: set[str],
         [recipe.get("name") or ""]
         + [(i.get("originalText") or i.get("note") or "") for i in recipe.get("recipeIngredient") or []]
         + [(s.get("text") or "") for s in recipe.get("recipeInstructions") or []])
-    if _SLOW_COOK.search(haystack) and "Slow Cooker" in known_tools and "Slow Cooker" not in tools:
-        tools.append("Slow Cooker")
+    if slow and _SLOW_COOK.search(haystack) and not set(slow) & set(tools):
+        tools.append(slow[0])
 
     # Anything slow-cooked is a winter dish here.
-    if "Slow Cooker" in tools and "Winter" in known_tags:
-        tags = [t for t in tags if t != "Summer"]
-        if "Winter" not in tags:
-            tags.append("Winter")
+    if set(slow) & set(tools) and winter:
+        tags = [t for t in tags if t not in summer]
+        if not set(winter) & set(tags):
+            tags.append(winter[0])
 
-    if c.category in MAINS:
-        tags = [t for t in tags if t not in NOT_ON_MAINS]
+    if c.category in mains:
+        not_mains = set(vocab.with_role("tags", "not-on-mains"))
+        tags = [t for t in tags if t not in not_mains]
 
     # No recipe is both seasons; if the model says so it has no view, so neither.
-    if "Summer" in tags and "Winter" in tags:
-        tags = [t for t in tags if t not in ("Summer", "Winter")]
-        flags.append("classifier tagged both Summer and Winter; dropped both")
+    if set(summer) & set(tags) and set(winter) & set(tags):
+        tags = [t for t in tags if t not in set(summer) | set(winter)]
+        flags.append("classifier tagged both summer and winter; dropped both")
 
     return Classification(c.category, tags, tools, c.dish, c.new_protein, flags)

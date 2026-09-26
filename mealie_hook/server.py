@@ -14,12 +14,9 @@ unprocessed. A periodic sweep catches anything whose event was lost.
 import json
 import logging
 import queue
-import signal
-import sys
 import threading
 import time
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from pydantic import ValidationError
 
@@ -128,47 +125,11 @@ def handle_event(worker: Worker, body: bytes) -> str:
     return f"recipe_created ({'bulk report ' + str(report) if report else slug})"
 
 
-def make_handler(worker: Worker):
-    class Handler(BaseHTTPRequestHandler):
-        def _reply(self, code: int, payload: dict):
-            data = json.dumps(payload).encode()
-            self.send_response(code)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-
-        def do_GET(self):
-            if self.path == "/health":
-                st = worker.pipeline.state.data
-                self._reply(200, {"ok": True, "busy": worker.busy, "queued": worker.q.qsize(),
-                                  "last_sweep": st.get("last_sweep"),
-                                  "since": st.get("since"),
-                                  "last_results": worker.last_results})
-            else:
-                self._reply(404, {"error": "not found"})
-
-        def do_POST(self):
-            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
-            if self.path.rstrip("/") == "/hook":
-                log.info("hook: %s", handle_event(worker, body))
-                self._reply(200, {"ok": True})
-            elif self.path.rstrip("/") == "/sweep":
-                worker.trigger("manual")
-                self._reply(202, {"ok": True})
-            else:
-                self._reply(404, {"error": "not found"})
-
-        def log_message(self, fmt, *args):  # route access logs through logging
-            log.debug("%s %s", self.address_string(), fmt % args)
-
-    return Handler
-
-
 def serve(pipeline: Pipeline, port: int, settle_seconds: int, sweep_minutes: int):
-    # As PID 1 in a container, Python ignores SIGTERM unless told otherwise, and every
-    # restart then waits out podman's 10s timeout before a SIGKILL.
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    import uvicorn
+
+    from .web import create_app
+
     # Fix the cut-off NOW. Set lazily by the first sweep, it landed after the settle period,
     # and a recipe imported during that window fell before it and was never processed.
     since = pipeline.state.since(pipeline.cfg.process_since)
@@ -176,7 +137,8 @@ def serve(pipeline: Pipeline, port: int, settle_seconds: int, sweep_minutes: int
     worker = Worker(pipeline, settle_seconds, sweep_minutes)
     worker.start()
     worker.trigger("startup")          # catch anything imported while we were down
-    httpd = ThreadingHTTPServer(("0.0.0.0", port), make_handler(worker))
     log.info("listening on :%d (settle %ds, sweep every %d min)", port, settle_seconds,
              sweep_minutes)
-    httpd.serve_forever()
+    # uvicorn handles SIGTERM itself, so a container stop is immediate.
+    uvicorn.run(create_app(pipeline, worker), host="0.0.0.0", port=port,
+                log_level="warning", access_log=False)

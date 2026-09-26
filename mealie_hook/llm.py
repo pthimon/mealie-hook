@@ -2,7 +2,6 @@
 
 import logging
 import time
-from pathlib import Path
 from typing import TypeVar
 
 import httpx
@@ -62,7 +61,3 @@ class LLM:
                      usage.get("completion_tokens"))
             return result
         raise LLMError(f"{name}: no valid reply after {retries + 1} attempts: {last}")
-
-
-def load_prompt(prompts_dir: Path, name: str) -> str:
-    return (Path(prompts_dir) / f"{name}.md").read_text().strip()

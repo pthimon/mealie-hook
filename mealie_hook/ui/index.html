@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recipe Rules</title>
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --text: #1f1d1a; --muted: #6b665e; --line: #e2ded6;
+  --accent: #2f6f4f; --accent-text: #ffffff; --warn: #9a5b00; --warn-bg: #fff4e0;
+  --bad: #a1261d; --bad-bg: #fde8e6; --add: #1f6b36; --add-bg: #e5f5e9; --del-bg: #fbe9e7;
+  --chip: #eceae4; --code: #f1efea;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161514; --panel: #201f1d; --text: #ecE9e3; --muted: #a39e95; --line: #34322e;
+    --accent: #5fb389; --accent-text: #0e1a13; --warn: #f0b458; --warn-bg: #2e2412;
+    --bad: #f08a80; --bad-bg: #331a17; --add: #7fd39a; --add-bg: #15291c; --del-bg: #33201d;
+    --chip: #2c2a27; --code: #1a1918;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+header h1 { font-size: 17px; margin: 0; flex: 1; }
+header .user { color: var(--muted); font-size: 13px; }
+nav { display: flex; gap: 4px; padding: 8px 16px 0; overflow-x: auto; border-bottom: 1px solid var(--line);
+  background: var(--panel); }
+nav button { border: 0; background: none; padding: 8px 12px; font: inherit; color: var(--muted);
+  border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+nav button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+section.tab { display: none; } section.tab.on { display: block; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+  margin-bottom: 14px; }
+h2 { font-size: 16px; margin: 0 0 10px; }
+h3 { font-size: 14px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+button.btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  padding: 7px 12px; border-radius: 8px; cursor: pointer; }
+button.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.btn.danger { color: var(--bad); }
+button.btn:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+ul.items { list-style: none; margin: 0; padding: 0; }
+ul.items li { padding: 5px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; justify-content: space-between; }
+ul.items li:last-child { border-bottom: 0; }
+ul.items li.dup { color: var(--muted); text-decoration: line-through; }
+.label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+textarea, input[type=text], select { font: inherit; color: var(--text); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px; width: 100%; }
+textarea.code, pre { font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre { background: var(--code); border-radius: 8px; padding: 10px; overflow-x: auto; white-space: pre-wrap;
+  margin: 6px 0; }
+.diff .add { background: var(--add-bg); color: var(--add); display: block; }
+.diff .del { background: var(--del-bg); color: var(--bad); display: block; }
+.diff .hunk { color: var(--muted); display: block; }
+.note { padding: 8px 10px; border-radius: 8px; margin: 6px 0; font-size: 14px; }
+.note.warn { background: var(--warn-bg); color: var(--warn); }
+.note.bad { background: var(--bad-bg); color: var(--bad); }
+.note.info { background: var(--chip); color: var(--muted); }
+.chip { display: inline-block; background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12px;
+  margin: 1px 2px 1px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+td.name { white-space: nowrap; font-weight: 600; }
+.missing { color: var(--bad); }
+.table-wrap { overflow-x: auto; }
+.msg { margin: 10px 0; }
+.msg.user { text-align: right; }
+.msg .bubble { display: inline-block; max-width: 85%; padding: 8px 12px; border-radius: 12px; text-align: left;
+  white-space: pre-wrap; }
+.msg.user .bubble { background: var(--accent); color: var(--accent-text); }
+.msg.bot .bubble { background: var(--panel); border: 1px solid var(--line); }
+.proposal { margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--panel); }
+details summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+.card { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.card:last-child { border-bottom: 0; }
+.card a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.banner { padding: 12px 16px; background: var(--warn-bg); color: var(--warn); }
+.spin::after { content: " …"; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: " ."; } 50% { content: " .."; } 75% { content: " ..."; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Recipe rules</h1>
+  <span class="user" id="user"></span>
+</header>
+<div id="banner" class="banner" hidden></div>
+<nav id="tabs">
+  <button data-tab="shopping">Shopping</button>
+  <button data-tab="review">Needs review</button>
+  <button data-tab="rules">Rules</button>
+  <button data-tab="chat">Change rules</button>
+  <button data-tab="history">History</button>
+</nav>
+<main>
+  <section class="tab" id="tab-shopping">
+    <div class="panel">
+      <div class="row">
+        <select id="shop-list" style="width:auto"></select>
+        <label class="small"><input type="checkbox" id="shop-qty"> include quantities</label>
+        <span style="flex:1"></span>
+        <button class="btn primary" id="shop-copy">Copy</button>
+        <button class="btn" id="shop-tick">Tick all off</button>
+      </div>
+      <div id="shop-status" class="small muted" style="margin-top:8px"></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Mealie <span class="muted small" id="shop-mcount"></span></h2><ul class="items" id="shop-mealie"></ul></div>
+      <div class="panel"><h2>Home Assistant <span class="muted small" id="shop-hcount"></span></h2>
+        <div id="shop-ha-note"></div><ul class="items" id="shop-ha"></ul></div>
+    </div>
+    <div class="panel"><h2>Export</h2>
+      <p class="small muted">One line per item, for pasting into the supermarket's list search. Crossed-out
+        Home Assistant items are already covered by a Mealie item.</p>
+      <textarea id="shop-text" rows="10" readonly></textarea></div>
+  </section>
+
+  <section class="tab" id="tab-review">
+    <div class="panel"><h2>Recipes flagged for review</h2>
+      <p class="small muted">Written as far as was safe; each reason says what to check. "Mark reviewed" removes
+        the tag and the note, nothing else.</p>
+      <div id="review-list"></div></div>
+  </section>
+
+  <section class="tab" id="tab-rules">
+    <div id="drift"></div>
+    <div id="vocab"></div>
+    <div class="panel"><h2>Prompts</h2>
+      <p class="small muted">The instructions sent to Qwen. Placeholders like <code>{{tags}}</code> are filled
+        from the vocabulary above; "What Qwen sees" shows the result.</p>
+      <div id="prompts"></div></div>
+  </section>
+
+  <section class="tab" id="tab-chat">
+    <div class="panel">
+      <h2>Change the rules</h2>
+      <p class="small muted">Describe a change in plain words, e.g. "add Duck as a protein tag", "stop tagging
+        traybakes Summer", "tofu goes in Chilled &amp; Deli". Qwen proposes an edit; nothing changes until you
+        press Apply, and every change can be reverted from History.</p>
+      <div id="chat-log"></div>
+      <textarea id="chat-input" rows="3" placeholder="What should change?"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn primary" id="chat-send">Send</button>
+        <button class="btn" id="chat-reset">New conversation</button>
+        <span id="chat-status" class="small muted"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-history">
+    <div class="panel"><h2>Changes to the rules</h2><div id="history-list"></div></div>
+  </section>
+</main>
+<datalist id="recipe-slugs"></datalist>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k instanceof Node ? k : String(k));
+  return e;
+}
+async function api(path, opts = {}) {
+  const init = { credentials: "same-origin", method: opts.method || "GET", headers: {} };
+  if (opts.body !== undefined) { init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(opts.body); }
+  const r = await fetch("api/" + path, init);
+  if (r.status === 401) { showLogin(); throw new Error("not logged in"); }
+  const data = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error((data && data.detail) || r.statusText);
+  return data;
+}
+function showLogin() {
+  const b = $("#banner"); b.hidden = false; b.replaceChildren(
+    "Log in to Mealie first, then come back. ",
+    el("a", { href: "/login?redirect=" + encodeURIComponent(location.pathname) }, "Go to the Mealie login"));
+}
+function fail(where, e) { where.replaceChildren(el("div", { class: "note bad" }, e.message || String(e))); }
+function diffView(text) {
+  return el("pre", { class: "diff" }, text.split("\n").map((ln) => {
+    const cls = ln.startsWith("@@") ? "hunk" : ln.startsWith("+") && !ln.startsWith("+++") ? "add"
+      : ln.startsWith("-") && !ln.startsWith("---") ? "del" : null;
+    return cls ? el("span", { class: cls }, ln) : ln + "\n";
+  }));
+}
+
+// ------------------------------------------------------------------------------- tabs
+const loaders = {};
+function show(tab) {
+  document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  document.querySelectorAll("section.tab").forEach((s) => s.classList.toggle("on", s.id === "tab-" + tab));
+  if (loaders[tab]) loaders[tab]();
+}
+document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => { location.hash = b.dataset.tab; }));
+window.addEventListener("hashchange", () => show(location.hash.slice(1) || "shopping"));
+
+// --------------------------------------------------------------------------- shopping
+let shop = null;
+loaders.shopping = async () => {
+  const status = $("#shop-status");
+  status.textContent = "Loading…";
+  try {
+    const q = new URLSearchParams({ quantities: $("#shop-qty").checked });
+    if ($("#shop-list").value) q.set("list_id", $("#shop-list").value);
+    shop = await api("shopping?" + q);
+    if (shop.error) { status.textContent = shop.error; return; }
+    $("#shop-list").replaceChildren(...shop.lists.map((l) => el("option", { value: l.id, selected: l.id === shop.list.id }, l.name)));
+    $("#shop-list").hidden = shop.lists.length < 2;
+    $("#shop-mealie").replaceChildren(...shop.mealie.map((i) =>
+      el("li", {}, el("span", {}, i.line), el("span", { class: "label" }, i.label))));
+    $("#shop-mcount").textContent = `(${shop.mealie.length})`;
+    $("#shop-ha").replaceChildren(...shop.ha.map((i) => el("li", { class: i.duplicate ? "dup" : "" }, i.line)));
+    $("#shop-hcount").textContent = shop.ha_enabled ? `(${shop.ha.length})` : "";
+    $("#shop-ha-note").replaceChildren(
+      !shop.ha_enabled ? el("div", { class: "note info" }, "Home Assistant is not configured (HA_URL / HA_TOKEN).")
+      : shop.ha_error ? el("div", { class: "note warn" }, shop.ha_error) : "");
+    $("#shop-text").value = shop.text;
+    const n = shop.text ? shop.text.split("\n").length : 0;
+    status.textContent = `${shop.list.name}: ${n} line${n === 1 ? "" : "s"} to buy`;
+    $("#shop-copy").disabled = !n;
+    $("#shop-tick").disabled = !(shop.mealie.length || shop.ha.length);
+  } catch (e) { status.textContent = e.message; }
+};
+$("#shop-qty").addEventListener("change", loaders.shopping);
+$("#shop-list").addEventListener("change", loaders.shopping);
+$("#shop-copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(shop.text + "\n"); }
+  catch { $("#shop-text").select(); document.execCommand("copy"); }
+  $("#shop-status").textContent = "Copied to the clipboard. Tick it all off once the order is in.";
+});
+$("#shop-tick").addEventListener("click", async () => {
+  const m = shop.mealie.length, h = shop.ha.length;
+  if (!confirm(`Tick off ${m} Mealie item${m === 1 ? "" : "s"} and ${h} Home Assistant item${h === 1 ? "" : "s"}?\n` +
+               "Only the items shown here; anything added since this page loaded is left alone.")) return;
+  $("#shop-tick").disabled = true;
+  try {
+    const r = await api("shopping/tick", { method: "POST", body: {
+      list_id: shop.list.id, mealie_ids: shop.mealie.map((i) => i.id), ha_ids: shop.ha.map((i) => i.id) } });
+    await loaders.shopping();
+    let msg = `Ticked off ${r.mealie} in Mealie and ${r.ha} in Home Assistant.`;
+    if (r.ha_failed.length) msg += ` Home Assistant refused ${r.ha_failed.length}.`;
+    $("#shop-status").textContent = msg;
+  } catch (e) { $("#shop-status").textContent = e.message; $("#shop-tick").disabled = false; }
+});
+
+// ----------------------------------------------------------------------------- review
+loaders.review = async () => {
+  const box = $("#review-list");
+  box.replaceChildren(el("span", { class: "muted spin" }, "Loading"));
+  try {
+    const items = await api("review");
+    if (!items.length) { box.replaceChildren(el("p", { class: "muted" }, "Nothing needs review.")); return; }
+    box.replaceChildren(...items.map((it) => {
+      const card = el("div", { class: "card" },
+        el("div", { class: "row" }, el("a", { href: it.url, target: "_blank", rel: "noopener" }, it.name),
+          el("span", { style: "flex:1" }),
+          el("button", { class: "btn", onclick: async (ev) => {
+            ev.target.disabled = true;
+            try { await api(`review/${encodeURIComponent(it.slug)}/clear`, { method: "POST", body: {} }); card.remove(); }
+            catch (e) { alert(e.message); ev.target.disabled = false; }
+          } }, "Mark reviewed")),
+        el("ul", { class: "small" }, it.reasons.map((r) => el("li", {}, r))));
+      return card;
+    }));
+  } catch (e) { fail(box, e); }
+};
+
+// ------------------------------------------------------------------------------ rules
+let rules = null;
+const KIND_TITLES = { categories: "Categories", tags: "Tags", tools: "Tools", labels: "Aisle labels" };
+async function createOrganizer(kind, name, btn) {
+  btn.disabled = true;
+  try { await api("organizers", { method: "POST", body: { kind, name } }); btn.textContent = "Created ✓"; }
+  catch (e) { alert(e.message); btn.disabled = false; }
+}
+function renderRules(data) {
+  rules = data;
+  const warn = data.drift.filter((d) => d.level === "warn"), info = data.drift.filter((d) => d.level === "info");
+  $("#drift").replaceChildren(!data.drift.length ? "" : el("div", { class: "panel" }, el("h2", {}, "Mismatches with Mealie"),
+    warn.map((d) => el("div", { class: "note warn row" }, el("span", { style: "flex:1" }, d.message),
+      d.create ? el("button", { class: "btn", onclick: (ev) => createOrganizer(d.kind, d.name, ev.target) }, "Create in Mealie") : null)),
+    info.length ? el("details", {}, el("summary", { class: "small muted" }, `${info.length} name(s) in Mealie with no guidance`),
+      info.map((d) => el("div", { class: "note info" }, d.message))) : null));
+  $("#vocab").replaceChildren(...Object.keys(KIND_TITLES).map((kind) => {
+    const entries = data.vocab[kind] || {}, live = new Set(data.live[kind] || []);
+    const names = [...new Set([...Object.keys(entries), ...(data.live[kind] || [])])];
+    return el("div", { class: "panel" }, el("h2", {}, KIND_TITLES[kind]), el("div", { class: "table-wrap" }, el("table", {},
+      el("thead", {}, el("tr", {}, el("th", {}, "Name"), el("th", {}, "Roles"), el("th", {}, "Guidance"))),
+      el("tbody", {}, names.map((n) => {
+        const e = entries[n] || { roles: [], guidance: "" };
+        return el("tr", {}, el("td", { class: "name" + (live.has(n) ? "" : " missing"), title: live.has(n) ? "" : "not in Mealie" }, n),
+          el("td", {}, e.roles.map((r) => el("span", { class: "chip" }, r))),
+          el("td", { class: e.guidance ? "" : "muted" }, e.guidance || "—"));
+      })))));
+  }));
+  $("#prompts").replaceChildren(...Object.keys(data.files).map((name) => {
+    const pre = el("pre", {}, data.files[name]);
+    const ta = el("textarea", { class: "code", rows: 18, hidden: true });
+    const save = el("button", { class: "btn primary", hidden: true }, "Save");
+    const cancel = el("button", { class: "btn", hidden: true }, "Cancel");
+    const edit = el("button", { class: "btn" }, "Edit by hand");
+    const err = el("div");
+    const toggle = (on) => { pre.hidden = on; ta.hidden = !on; save.hidden = !on; cancel.hidden = !on; edit.hidden = on; };
+    edit.onclick = () => { ta.value = data.files[name]; toggle(true); };
+    cancel.onclick = () => { toggle(false); err.replaceChildren(); };
+    save.onclick = async () => {
+      try { renderRules(await api(`files/${name}`, { method: "PUT", body: { content: ta.value } })); }
+      catch (e) { fail(err, e); }
+    };
+    return el("details", {}, el("summary", {}, name), el("div", { class: "row" }, edit, save, cancel), err, pre, ta,
+      data.rendered[name] ? el("details", {}, el("summary", { class: "small muted" }, "What Qwen sees"), el("pre", {}, data.rendered[name])) : null);
+  }));
+}
+loaders.rules = async () => {
+  try { renderRules(await api("rules")); } catch (e) { fail($("#vocab"), e); }
+};
+
+// ------------------------------------------------------------------------------- chat
+let convo = [];
+try { convo = JSON.parse(sessionStorage.getItem("convo") || "[]"); } catch {}
+function saveConvo() { try { sessionStorage.setItem("convo", JSON.stringify(convo.map(({ role, content }) => ({ role, content })))); } catch {} }
+function proposalCard(p) {
+  const box = el("div", { class: "proposal" });
+  box.append(...p.errors.map((e) => el("div", { class: "note bad" }, e)));
+  box.append(...(p.warnings || []).map((w) => el("div", { class: "note warn" }, w)));
+  for (const [file, diff] of Object.entries(p.diffs)) box.append(el("div", { class: "small muted" }, file), diffView(diff));
+  if (p.creates.length) box.append(el("div", { class: "row small" }, "Not in Mealie yet:",
+    p.creates.map((c) => el("button", { class: "btn", onclick: (ev) => createOrganizer(c.kind, c.name, ev.target) },
+      `Create ${c.kind.replace(/s$/, "").replace("categorie", "category")} “${c.name}”`))));
+  if (!p.applicable) return box;
+  const slug = el("input", { type: "text", list: "recipe-slugs", placeholder: "recipe slug to try it on", style: "flex:1;min-width:200px" });
+  const out = el("div");
+  const tryBtn = el("button", { class: "btn" }, "Try on recipe");
+  tryBtn.onclick = async () => {
+    if (!slug.value) return;
+    tryBtn.disabled = true; out.replaceChildren(el("span", { class: "muted spin" }, "Running with the proposed rules"));
+    try {
+      const r = await api(`proposals/${p.id}/try`, { method: "POST", body: { slug: slug.value } });
+      const pr = r.proposed, now = r.in_mealie;
+      out.replaceChildren(el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, ""), el("th", {}, "In Mealie now"), el("th", {}, "With these rules"))),
+        el("tbody", {},
+          el("tr", {}, el("td", {}, "Category"), el("td", {}, now.category.join(", ")), el("td", {}, pr.category || "—")),
+          el("tr", {}, el("td", {}, "Tags"), el("td", {}, now.tags.join(", ")), el("td", {}, pr.tags.join(", "))),
+          el("tr", {}, el("td", {}, "Tools"), el("td", {}, now.tools.join(", ")), el("td", {}, pr.tools.join(", "))))),
+        pr.flags.length ? pr.flags.map((f) => el("div", { class: "note warn" }, f)) : "",
+        el("details", {}, el("summary", { class: "small muted" }, "Ingredients as parsed"), el("pre", {}, pr.preview.join("\n"))));
+    } catch (e) { fail(out, e); }
+    tryBtn.disabled = false;
+  };
+  const apply = el("button", { class: "btn primary" }, "Apply");
+  apply.onclick = async () => {
+    apply.disabled = true;
+    try { const r = await api(`proposals/${p.id}/apply`, { method: "POST", body: {} }); rules = r; apply.textContent = "Applied ✓"; }
+    catch (e) { alert(e.message); apply.disabled = false; }
+  };
+  box.append(el("div", { class: "row", style: "margin-top:8px" }, slug, tryBtn, apply), out);
+  return box;
+}
+function renderChat() {
+  $("#chat-log").replaceChildren(...convo.map((m) => el("div", { class: "msg " + (m.role === "user" ? "user" : "bot") },
+    el("div", { class: "bubble" }, m.shown || m.content), m.proposal ? proposalCard(m.proposal) : null)));
+}
+async function send() {
+  const text = $("#chat-input").value.trim();
+  if (!text) return;
+  convo.push({ role: "user", content: text }); $("#chat-input").value = ""; renderChat();
+  $("#chat-send").disabled = true; $("#chat-status").className = "small muted spin"; $("#chat-status").textContent = "Qwen is working (about 30s)";
+  try {
+    const p = await api("chat", { method: "POST", body: { messages: convo.map(({ role, content }) => ({ role, content })) } });
+    convo.push({ role: "assistant", content: p.history, shown: p.reply, proposal: p });
+  } catch (e) { convo.push({ role: "assistant", content: "(error)", shown: "Error: " + e.message }); }
+  $("#chat-send").disabled = false; $("#chat-status").className = "small muted"; $("#chat-status").textContent = "";
+  saveConvo(); renderChat();
+}
+$("#chat-send").addEventListener("click", send);
+$("#chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); });
+$("#chat-reset").addEventListener("click", () => { convo = []; saveConvo(); renderChat(); });
+loaders.chat = async () => {
+  renderChat();
+  if (!$("#recipe-slugs").children.length) {
+    try { const rs = await api("recipes"); $("#recipe-slugs").replaceChildren(...rs.map((r) => el("option", { value: r.slug }, r.name))); } catch {}
+  }
+};
+
+// ---------------------------------------------------------------------------- history
+loaders.history = async () => {
+  const box = $("#history-list");
+  try {
+    const hs = await api("history");
+    if (!hs.length) { box.replaceChildren(el("p", { class: "muted" }, "No changes yet.")); return; }
+    box.replaceChildren(...hs.map((h) => {
+      const out = el("div");
+      return el("div", { class: "card" },
+        el("div", { class: "row" }, el("strong", {}, h.summary || "(change)"), el("span", { style: "flex:1" }),
+          el("span", { class: "small muted" }, `${(h.at || "").replace("T", " ").slice(0, 16)} · ${h.who || ""}`)),
+        el("div", { class: "row", style: "margin-top:6px" },
+          el("button", { class: "btn", onclick: async () => {
+            try { const d = await api(`history/${h.id}`);
+              out.replaceChildren(...(Object.keys(d).length ? Object.entries(d).map(([, v]) => diffView(v)) : [el("span", { class: "muted small" }, "no differences")]));
+            } catch (e) { fail(out, e); } } }, "Show changes"),
+          el("button", { class: "btn danger", onclick: async () => {
+            if (!confirm("Put the rules back as they were before this change? (That is itself recorded, so it can be undone.)")) return;
+            try { await api(`history/${h.id}/revert`, { method: "POST", body: {} }); loaders.history(); } catch (e) { alert(e.message); } } },
+            "Revert to before this")), out);
+    }));
+  } catch (e) { fail(box, e); }
+};
+
+// ------------------------------------------------------------------------------- boot
+(async () => {
+  try { const me = await api("me"); $("#user").textContent = me.username; } catch {}
+  show(location.hash.slice(1) || "shopping");
+})();
+</script>
+</body>
+</html>

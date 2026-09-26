@@ -19,8 +19,9 @@ For every recipe imported from a URL it:
    oil` → `sesame oil` + note, `litres` → `l`. A new food is created only when nothing
    matches, and never with prep words in its name.
 5. **Files it**: one category, protein/season/character tags, and tools (Qwen), chosen only
-   from Mealie's existing vocabulary. Rules in code: slow cooker ⇒ Winter, never both
-   seasons, provenance tags never chosen.
+   from Mealie's existing vocabulary. Rules in code, keyed on roles from the rules file
+   rather than on names: slow cooker ⇒ winter, never both seasons, provenance tags never
+   chosen, character tags like Savoury never on a main.
 6. **Labels new foods** with their shopping aisle and plural form (Qwen) before creating them.
 
 Anything it is unsure of is written as far as it safely can, and the recipe gets a
@@ -56,24 +57,67 @@ survives a lost `data/` directory.
   false}`, so the shared llama-server keeps its defaults. Typical cost is ~20s for
   ingredients plus ~3s to classify.
 
+## The page: recipes.<domain>/rules/
+
+Served by this service, through Caddy, on Mealie's own domain. It uses your Mealie login
+(the `mealie.access_token` cookie, checked against Mealie on each request) and is for
+Mealie admins only.
+
+- **Shopping**: the Mealie shopping list and Home Assistant's, merged into one list of
+  shoppable names for pasting into a supermarket search. Home Assistant items a Mealie item
+  already covers are crossed out. **Copy** puts the list on the clipboard. **Tick all
+  off** ticks exactly the items shown in both places; anything added since the page loaded
+  is left alone.
+- **Needs review**: flagged recipes with their reasons, linked into Mealie. **Mark
+  reviewed** removes the tag and the note.
+- **Rules**: every category, tag, tool and aisle with its guidance and roles, the prompts
+  (plus "what Qwen sees" once the vocabulary is filled in), and mismatches with Mealie, e.g. a
+  tag with no guidance, a vocabulary name Mealie lacks (with a **Create in Mealie**
+  button), or a code rule disabled because its role has no live name. Files can also be
+  edited by hand.
+- **Change rules**: describe a change in plain words; Qwen proposes an edit, which is checked
+  and shown as a diff. **Try on recipe** runs it on a filed recipe without writing
+  anything; **Apply** saves it. New names come with a one-click "create in Mealie"; nothing
+  is ever renamed or deleted in Mealie.
+- **History**: every change, with its diff and **Revert to before this**. A revert is
+  itself recorded.
+
+### The rules
+
+`rules/` in this repo holds the shipped defaults. On first start they are copied to
+`data/rules/`, which is the live copy the page edits. The service reads it on every recipe,
+so edits apply immediately, with no redeploy, and image rebuilds never overwrite it.
+
+- `vocabulary.toml`: guidance and roles for each Mealie organizer. Mealie supplies the
+  names (the model can only choose names that exist); this file says what they mean.
+- `classify.md`, `labels.md`, `ingredients.md`: the prompts. `{{categories}}`, `{{tags}}`,
+  `{{tools}}` and `{{labels}}` are filled from the vocabulary and must stay.
+
 ## Layout
 
 ```
 mealie_hook/
   __main__.py     CLI
-  server.py       webhook receiver + worker (settle, bulk-report wait, periodic sweep)
-  pipeline.py     per-recipe pipeline and sweep
+  server.py       worker (settle, bulk-report wait, periodic sweep) + event parsing
+  web.py          FastAPI: internal /hook, and the /ui page + API (Mealie-login auth)
+  pipeline.py     per-recipe pipeline, sweep, and replay (try rules on a filed recipe)
+  rules.py        vocabulary + prompt templates: store, render, drift, history
+  chat.py         rules editing via Qwen: proposal -> validate -> diff
+  editor.md       the rules editor's own instructions (not editable from the page)
+  shopping.py     Mealie + Home Assistant shopping export and tick-off
+  review.py       the Needs review queue
   scrape.py       scrape checks, page extraction (BeautifulSoup), nutrition
   ingredients.py  model call + deterministic post-processing
   foods.py        food/unit matching, plurals, prep-word guard
-  classify.py     category/tags/tools + house rules
+  classify.py     category/tags/tools + role-based rules
   labels.py       aisle + plural for new foods
   models.py       pydantic models: the LLM JSON schemas and their validators
   evaluate.py     replay processed recipes and score agreement
   export.py       tracking JSON files from Mealie's state
+  ui/index.html   the page (no build step)
   mealie.py llm.py config.py state.py
-prompts/          system prompts, read on every call (editable without a restart)
-tests/            offline tests (fake Mealie, fake model)
+rules/            shipped default rules
+tests/            offline tests (fake Mealie, fake model, FastAPI test client)
 ```
 
 ## Deploy (marvin)
@@ -84,6 +128,13 @@ One-time setup:
 ssh homelab 'mkdir -p ~/compose/mealie-hook'
 # create an API token in Mealie (Profile -> API Tokens, name "mealie-hook"), then:
 ssh homelab 'cat > ~/compose/mealie-hook/.env && chmod 600 ~/compose/mealie-hook/.env' <<< 'MEALIE_TOKEN=...'
+```
+
+For the Shopping tab, add Home Assistant to the same `.env` (optional):
+
+```
+HA_URL=https://home.example.com
+HA_TOKEN=<long-lived access token>
 ```
 
 Then, from this directory, and again after every change:
@@ -101,8 +152,23 @@ ssh homelab 'podman exec mealie-hook python -m mealie_hook notifier --create'
 
 (In the UI it lives under Settings → Household → Notifiers; `--delete` removes it.)
 
-The container joins the `mealie_default` network. It publishes no port, and reaches
-llama-server at `host.containers.internal:8080`.
+The container joins the `mealie_default` network (for Mealie) and `proxy` (for Caddy). It
+publishes no port, and reaches llama-server at `host.containers.internal:8080`.
+
+Caddy serves the page on Mealie's domain; only `/ui` is exposed, never `/hook`:
+
+```
+recipes.example.com {
+    redir /rules /rules/
+    handle_path /rules/* {
+        rewrite * /ui{path}
+        reverse_proxy mealie-hook:8000
+    }
+    handle {
+        reverse_proxy mealie:9000
+    }
+}
+```
 
 ## Operating
 
@@ -147,5 +213,5 @@ python -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pytest
 ```
 
-The prompts are the main tuning surface. After changing one, run `eval` to measure it
-against the recipes already in the collection.
+The rules are the main tuning surface: change them from the page, then run `eval` to measure
+the effect against the recipes already in the collection.

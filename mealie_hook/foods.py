@@ -71,9 +71,9 @@ _LEADING_QTY = re.compile(
     r"(?:(?P<uni>[" + "".join(_FRACTIONS) + r"])|(?P<num>\d+)/(?P<den>\d+))?")
 
 # Trailing words a model tends to glue onto a herb ("sage leaves"). Stripped only when the
-# remainder is an existing Herbs & Spices food: "lime leaf" must not collapse into "lime".
+# remainder is an existing food in a herb aisle (role "herbs" in the vocabulary): "lime leaf"
+# must not collapse into "lime".
 HERB_SUFFIXES = ("leaf", "leaves")
-HERB_LABEL = "herbs & spices"
 
 
 def norm(s: str | None) -> str:
@@ -196,7 +196,8 @@ def recover_vague_unit(text: str) -> tuple[str, float | None, str | None] | None
 class Vocab:
     """Existing foods and units, indexed for lookup. Grows as new records are planned."""
 
-    def __init__(self, foods: list[dict], units: list[dict]):
+    def __init__(self, foods: list[dict], units: list[dict], herb_labels=("Herbs & Spices",)):
+        self.herb_labels = {norm(x) for x in herb_labels}
         self.foods: dict[str, dict] = {}
         self.loose_foods: dict[str, dict] = {}
         self.word_foods: dict[tuple, dict] = {}
@@ -265,6 +266,6 @@ class Vocab:
         words = norm(name).split()
         if len(words) > 1 and words[-1] in HERB_SUFFIXES:
             rec = self._lookup(" ".join(words[:-1]))
-            if rec and norm((rec.get("label") or {}).get("name")) == HERB_LABEL:
+            if rec and norm((rec.get("label") or {}).get("name")) in self.herb_labels:
                 return rec, ["leaves"]
         return None, []

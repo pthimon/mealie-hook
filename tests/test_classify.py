@@ -3,6 +3,17 @@ from pydantic import ValidationError
 
 from mealie_hook.classify import Classification, apply_rules
 from mealie_hook.models import classification_reply
+from mealie_hook.rules import Vocabulary
+
+VOCAB = Vocabulary.model_validate({
+    "categories": {"Dinner": {"roles": ["main"]}, "Lunch": {"roles": ["main"]}},
+    "tags": {"Summer": {"roles": ["season", "summer"]}, "Winter": {"roles": ["season", "winter"]},
+             "Savoury": {"roles": ["character", "not-on-mains"]},
+             "Dairy": {"roles": ["character", "not-on-mains"]},
+             "Curry": {"roles": ["character"]},
+             "Food for Life Cookbook": {"roles": ["provenance"]}},
+    "tools": {"Slow Cooker": {"roles": ["slow-cooker"]}},
+})
 
 TAGS = {"Chicken", "Summer", "Winter", "Food for Life Cookbook", "Beans", "Savoury", "Dairy",
         "Curry", "Prawn", "White fish"}
@@ -16,7 +27,7 @@ def recipe(name="Curry", method="Simmer."):
 
 def rules(tags, tools=(), **kw):
     return apply_rules(Classification("Dinner", list(tags), list(tools)), recipe(**kw),
-                       TAGS, TOOLS, BANNED)
+                       TAGS, TOOLS, BANNED, VOCAB)
 
 
 def test_slow_cooker_adds_tool_and_winter():
@@ -58,13 +69,13 @@ def test_character_tags_dropped_on_mains():
 
 def test_character_tags_kept_on_breakfast():
     c = apply_rules(Classification("Breakfast", ["Savoury", "Dairy"], []), recipe(),
-                    TAGS, TOOLS, BANNED)
+                    TAGS, TOOLS, BANNED, VOCAB)
     assert c.tags == ["Savoury", "Dairy"]
 
 
 def test_unknown_protein_flagged_not_created():
     c = apply_rules(Classification("Dinner", [], [], new_protein="duck"), recipe(),
-                    TAGS, TOOLS, BANNED)
+                    TAGS, TOOLS, BANNED, VOCAB)
     assert c.tags == [] and "'Duck'" in c.flags[0]
 
 
@@ -72,11 +83,27 @@ def test_unknown_protein_flagged_not_created():
                                           ("white-fish", "White fish")])
 def test_proposed_protein_matching_existing_tag_is_used(proposal, tag):
     c = apply_rules(Classification("Dinner", [], [], new_protein=proposal), recipe(),
-                    TAGS, TOOLS, BANNED)
+                    TAGS, TOOLS, BANNED, VOCAB)
     assert c.tags == [tag] and not c.flags
 
 
 def test_new_protein_ignored_off_mains():
     c = apply_rules(Classification("Dessert", [], [], new_protein="rhubarb"), recipe(),
-                    TAGS, TOOLS, BANNED)
+                    TAGS, TOOLS, BANNED, VOCAB)
     assert not c.flags
+
+
+def test_rules_follow_roles_not_names():
+    # rename the season tags: the both-seasons rule must still apply
+    v = Vocabulary.model_validate({"tags": {"Hot": {"roles": ["summer"]},
+                                            "Cold": {"roles": ["winter"]}}})
+    c = apply_rules(Classification("Dinner", ["Hot", "Cold"], []), recipe(),
+                    {"Hot", "Cold"}, set(), set(), v)
+    assert c.tags == [] and c.flags
+
+
+def test_rule_without_live_role_is_inert():
+    v = Vocabulary()                                  # no roles at all
+    c = apply_rules(Classification("Dinner", ["Chicken"], []),
+                    recipe(method="Use the slow cooker."), TAGS, TOOLS, BANNED, v)
+    assert c.tools == [] and c.tags == ["Chicken"]

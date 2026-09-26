@@ -5,9 +5,11 @@ description = "Post-import processing for Mealie recipes, triggered by Mealie's 
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.12",
+    "fastapi>=0.110",
     "httpx>=0.27",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "uvicorn>=0.29",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +24,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["mealie_hook"]
+
+[tool.setuptools.package-data]
+mealie_hook = ["editor.md", "ui/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

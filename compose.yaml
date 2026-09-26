@@ -16,13 +16,15 @@ services:
       DATA_DIR: /data
     volumes:
       - ./data:/data:z
-      # Uncomment to tune prompts live without rebuilding the image:
-      # - ./prompts:/app/prompts:ro,z
-    # No published port. Mealie reaches the hook as http://mealie-hook:8000 over the
-    # shared network; nothing else needs to.
+      # The live rules (vocabulary + prompts, edited from the rules page) are in ./data/rules.
+    # No published port. Mealie reaches the hook as http://mealie-hook:8000 over its network;
+    # Caddy (on `proxy`) serves only the /ui pages, as <mealie domain>/rules/.
     networks:
       - mealie
+      - proxy
 networks:
   mealie:
     external: true
     name: mealie_default
+  proxy:
+    external: true

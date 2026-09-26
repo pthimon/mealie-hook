@@ -1,10 +1,9 @@
 """Configuration from the environment (and an optional .env file)."""
 
 from pathlib import Path
-from typing import Annotated
 
-from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -19,7 +18,8 @@ class Config(BaseSettings):
     llm_model: str = "qwen"
     llm_timeout: int = 600
     data_dir: Path = Path("/data")
-    prompts_dir: Path = ROOT / "prompts"
+    # Shipped defaults; copied into DATA_DIR/rules on first start, which is the live copy.
+    default_rules_dir: Path = ROOT / "rules"
     port: int = 8000
     # Wait this long after an event before sweeping, so a burst of imports is handled as one
     # sweep and a human who opens the recipe straight after importing gets a head start.
@@ -31,15 +31,11 @@ class Config(BaseSettings):
     # collection is never reprocessed.
     process_since: str = ""
     review_tag: str = "Needs review"
-    # Tags that record where a recipe came from. Never chosen by the model.
-    provenance_tags: Annotated[list[str], NoDecode] = ["Food for Life Cookbook"]
+    # Home Assistant's shopping list, shown and ticked alongside Mealie's. Optional.
+    ha_url: str = ""
+    ha_token: str = ""
     max_attempts: int = 3
     dry_run: bool = False
-
-    @field_validator("provenance_tags", mode="before")
-    @classmethod
-    def _split(cls, v):
-        return [s.strip() for s in v.split(",") if s.strip()] if isinstance(v, str) else v
 
     @model_validator(mode="after")
     def _token(self):
@@ -48,3 +44,7 @@ class Config(BaseSettings):
         if not self.mealie_token and self.mealie_token_file:
             self.mealie_token = Path(self.mealie_token_file).expanduser().read_text().strip()
         return self
+
+    @property
+    def rules_dir(self) -> Path:
+        return self.data_dir / "rules"

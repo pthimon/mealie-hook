@@ -1,0 +1,205 @@
+# Guidance and roles for Mealie's organizers. Names must match Mealie exactly;
+# a name in Mealie but not here is still offered to the model, with no guidance.
+# Edited from the rules page (/rules/); this header is regenerated on save.
+#
+# Roles:
+#   categories  main          main-dish slot: not-on-mains tags are dropped, new_protein is considered
+#   tags        protein       listed as a protein tag
+#   tags        season        listed as a season tag
+#   tags        summer        never kept together with a winter tag
+#   tags        winter        added to anything that uses a slow-cooker tool
+#   tags        character     listed as a character tag
+#   tags        not-on-mains  never kept on a main category
+#   tags        provenance    records where a recipe came from; never chosen by the model
+#   tools       slow-cooker   added when the recipe says "slow cooker"; implies winter
+#   labels      herbs         "sage leaves" folds onto an existing herb food in this aisle
+
+# -------------------- categories
+
+[categories.Dinner]
+roles = ["main"]
+guidance = "Evening mains: curries, tagines, traybakes, roasted or baked fish, chillis, stews, casseroles, pasta bakes, burrito bowls."
+
+[categories.Lunch]
+roles = ["main"]
+guidance = "Soups, salads, wraps, bowls, bruschetta, things on toast, light single-serve dishes. Light and portable, not just soup. A crab cake starter serving two is Lunch."
+
+[categories.Breakfast]
+guidance = "Porridge, bircher, overnight oats, pancakes, shakshuka, egg dishes."
+
+[categories.Dessert]
+guidance = "Eaten with a spoon after a meal: sorbets, jellies, compotes, puddings, mousses, fools, crumbles, cakes, tarts, cheesecake, brownies."
+
+[categories.Snack]
+guidance = "Eaten out of hand or with tea: energy balls, cookies, muffins, banana bread, flapjacks, and savoury nibbles (popcorn, roasted chickpeas, hummus). Muffins and banana breads are Snack, not Dessert."
+
+[categories.Side]
+guidance = "Dressings, pickles, ferments, crispy toppings and condiments that are assembled into something else rather than eaten alone; also side vegetables."
+
+# -------------------- tags
+
+[tags.Chicken]
+roles = ["protein"]
+
+[tags.Turkey]
+roles = ["protein"]
+
+[tags.Beef]
+roles = ["protein"]
+
+[tags.Lamb]
+roles = ["protein"]
+
+[tags.Pork]
+roles = ["protein"]
+guidance = "Only when pork leads the dish; chorizo, bacon, lardons or pancetta used for flavour do not count."
+
+[tags.Salmon]
+roles = ["protein"]
+
+[tags."Sea bass"]
+roles = ["protein"]
+
+[tags.Trout]
+roles = ["protein"]
+
+[tags."White fish"]
+roles = ["protein"]
+guidance = "Cod, haddock, hake, pollock."
+
+[tags.Prawn]
+roles = ["protein"]
+
+[tags.Crab]
+roles = ["protein"]
+
+[tags.Sardine]
+roles = ["protein"]
+
+[tags.Tuna]
+roles = ["protein"]
+
+[tags.Tofu]
+roles = ["protein"]
+
+[tags.Lentils]
+roles = ["protein"]
+
+[tags.Beans]
+roles = ["protein", "character"]
+guidance = "Beans only: kidney, black, butter, cannellini, borlotti, baked. Not lentils or chickpeas."
+
+[tags.Chickpeas]
+roles = ["protein"]
+
+[tags.Pulses]
+roles = ["protein"]
+guidance = "A mix of pulses."
+
+[tags.Eggs]
+roles = ["protein", "character"]
+
+[tags.Vegetables]
+roles = ["protein"]
+guidance = "Vegetables lead the plate with no other protein."
+
+[tags.Summer]
+roles = ["season", "summer"]
+guidance = "Salads, chilled soups, cold desserts (sorbets, lollies, fools), barbecue and griddle dishes, traybakes built on summer vegetables (peppers, courgettes, tomatoes, olives), dishes of summer fruit (strawberries, raspberries, peaches). Autumn fruit (apples, blackberries, plums) is not Summer."
+
+[tags.Winter]
+roles = ["season", "winter"]
+guidance = "Stews, braises, casseroles, hotpots, pies, slow-cooked or long-simmered dishes, root-vegetable dishes, hearty soups, warm crumbles and steamed puddings."
+
+[tags.Fruit]
+roles = ["character", "not-on-mains"]
+
+[tags."Nuts & Seeds"]
+roles = ["character"]
+
+[tags.Oats]
+roles = ["character", "not-on-mains"]
+
+[tags.Fermented]
+roles = ["character"]
+
+[tags.Dairy]
+roles = ["character", "not-on-mains"]
+guidance = "Dairy defines the dish (a yogurt parfait), not merely present (butter in a muffin)."
+
+[tags.Frozen]
+roles = ["character"]
+
+[tags.Savoury]
+roles = ["character", "not-on-mains"]
+
+[tags.Curry]
+roles = ["character"]
+guidance = "The dish is a curry."
+
+[tags.Chocolate]
+roles = ["character", "not-on-mains"]
+
+[tags.Citrus]
+roles = ["character", "not-on-mains"]
+
+[tags."Food for Life Cookbook"]
+roles = ["provenance"]
+
+# -------------------- tools
+
+[tools."Slow Cooker"]
+roles = ["slow-cooker"]
+guidance = "Cooked in a slow cooker, not merely \"slow-cooked\" in the oven."
+
+[tools."Food processor"]
+guidance = "Something must be blitzed."
+
+[tools."Casserole dish"]
+guidance = "Cooked in a lidded casserole."
+
+# -------------------- labels
+
+[labels."Fruit & Veg"]
+
+[labels.Bakery]
+
+[labels.Meat]
+
+[labels.Fish]
+guidance = "Fresh and chilled fish only; canned fish is Tins & Jars, frozen is Frozen."
+
+[labels."Dairy & Eggs"]
+
+[labels."Chilled & Deli"]
+guidance = "Includes tofu."
+
+[labels.Frozen]
+guidance = "Frozen fish pie mix, frozen peas and other frozen produce."
+
+[labels."Tins & Jars"]
+guidance = "Includes canned fish (sardines, tuna in tins)."
+
+[labels."Dry Goods"]
+guidance = "Stock cubes, dried pasta, rice, dried pulses."
+
+[labels."Herbs & Spices"]
+roles = ["herbs"]
+guidance = "Fresh herbs belong here, not in Fruit & Veg."
+
+[labels."Oils & Vinegars"]
+
+[labels."Sauces & Condiments"]
+guidance = "Soy sauce, mustard, ketchup, pastes."
+
+[labels.Baking]
+
+[labels."Nuts, Seeds & Dried Fruit"]
+
+[labels."Drinks & Alcohol"]
+
+[labels.Homemade]
+guidance = "Anything that is itself a recipe made at home."
+
+[labels.Other]
+guidance = "Only when nothing else fits."

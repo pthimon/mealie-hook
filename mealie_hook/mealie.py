@@ -74,6 +74,23 @@ class Mealie:
     def create_tag(self, name: str) -> dict:
         return self.req("POST", "/organizers/tags", {"name": name})
 
+    def create_organizer(self, kind: str, name: str) -> dict:
+        path = {"categories": "/organizers/categories", "tags": "/organizers/tags",
+                "tools": "/organizers/tools", "labels": "/groups/labels"}[kind]
+        return self.req("POST", path, {"name": name})
+
+    def group_self(self) -> dict:
+        return self.req("GET", "/groups/self")
+
+    def recipes_tagged(self, tag_id: str) -> list[dict]:
+        return self._all(f"/recipes?tags={tag_id}")
+
+    def tick_shopping_items(self, items: list[dict]) -> dict:
+        """Bulk update: each item goes back whole with `checked` set, so quantities, notes,
+        labels and recipe references are untouched."""
+        return self.req("PUT", "/households/shopping/items",
+                        [dict(i, checked=True) for i in items])
+
     # bulk-import reports, shopping lists, notifiers
     def report(self, report_id: str) -> dict:
         return self.req("GET", f"/groups/reports/{report_id}")

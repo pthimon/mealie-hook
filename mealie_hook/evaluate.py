@@ -11,8 +11,9 @@ from pathlib import Path
 
 from . import classify, ingredients
 from .foods import Vocab, canonical_unit, norm
-from .llm import LLMError, load_prompt
-from .pipeline import Pipeline
+from .llm import LLMError
+from .pipeline import Pipeline, as_fresh_import
+from .rules import Rules
 from .state import now_iso
 
 log = logging.getLogger(__name__)
@@ -22,35 +23,31 @@ def _unit(u) -> str:
     return canonical_unit(u.get("name")) if isinstance(u, dict) else ""
 
 
-def _replay_rows(recipe: dict) -> tuple[list[dict], list[dict]]:
-    """-> (raw ingredient rows as a fresh scrape would have them, expected parsed rows)."""
-    raw, expected = [], []
+def _expected(recipe: dict) -> list[dict]:
+    out = []
     for ing in recipe.get("recipeIngredient") or []:
-        if ing.get("title"):
-            raw.append({"note": ing["title"], "food": None})
-        text = ing.get("originalText") or ing.get("display") or ""
-        raw.append({"note": text, "originalText": text, "food": None})
         f = ing.get("food") or {}
-        expected.append({"title": norm(ing.get("title")), "food": norm(f.get("name")),
-                         "unit": _unit(ing.get("unit")), "quantity": ing.get("quantity") or 0,
-                         "text": text})
-    return raw, expected
+        out.append({"title": norm(ing.get("title")), "food": norm(f.get("name")),
+                    "unit": _unit(ing.get("unit")), "quantity": ing.get("quantity") or 0,
+                    "text": ing.get("originalText") or ing.get("display") or ""})
+    return out
 
 
 def evaluate(pipe: Pipeline, n: int = 20, do_classify: bool = True,
-             slugs: list[str] | None = None) -> dict:
+             slugs: list[str] | None = None, rules: Rules | None = None) -> dict:
+    rules = rules or pipe.rules.load()
     mealie = pipe.mealie
     summaries = [r for r in mealie.recipes() if r.get("orgURL")]
     summaries.sort(key=lambda r: r.get("createdAt") or "", reverse=True)
     if slugs:
         summaries = [r for r in summaries if r["slug"] in slugs]
     vocab_foods, vocab_units = mealie.foods(), mealie.units()
-    cats = [c["name"] for c in mealie.categories()]
-    banned = set(pipe.cfg.provenance_tags) | {pipe.cfg.review_tag}
-    tags = [t["name"] for t in mealie.tags() if t["name"] not in banned]
-    tools = [t["name"] for t in mealie.tools()]
-    ing_prompt = load_prompt(pipe.cfg.prompts_dir, "ingredients")
-    cls_prompt = load_prompt(pipe.cfg.prompts_dir, "classify")
+    live = pipe.live_names()
+    cats, tools = live["categories"], live["tools"]
+    banned = pipe.banned_tags(rules)
+    tags = [t for t in live["tags"] if t not in banned]
+    ing_prompt = rules.render("ingredients.md", {})
+    cls_prompt = rules.render("classify.md", live, banned)
 
     totals = {"rows": 0, "food": 0, "unit": 0, "quantity": 0, "title": 0, "all": 0,
               "recipes": 0, "category": 0, "tags_tp": 0, "tags_fp": 0, "tags_fn": 0}
@@ -62,8 +59,9 @@ def evaluate(pipe: Pipeline, n: int = 20, do_classify: bool = True,
         if any(i.get("food") is None for i in recipe.get("recipeIngredient") or []):
             continue                                  # not fully parsed; no ground truth
         totals["recipes"] += 1
-        raw, expected = _replay_rows(recipe)
-        vocab = Vocab(vocab_foods, vocab_units)
+        raw = as_fresh_import(recipe)["recipeIngredient"]
+        expected = _expected(recipe)
+        vocab = Vocab(vocab_foods, vocab_units, rules.vocab.with_role("labels", "herbs"))
         lines = ingredients.unparsed_lines(raw)
         entry = {"slug": s["slug"], "mismatches": []}
         try:
@@ -100,7 +98,7 @@ def evaluate(pipe: Pipeline, n: int = 20, do_classify: bool = True,
             try:
                 c = classify.call_model(pipe.llm, cls_prompt, classify.recipe_brief(recipe, []),
                                         cats, tags, tools)
-                c = classify.apply_rules(c, recipe, set(tags), set(tools), banned)
+                c = classify.apply_rules(c, recipe, set(tags), set(tools), banned, rules.vocab)
             except LLMError as e:
                 entry["classify_error"] = str(e)
             else:

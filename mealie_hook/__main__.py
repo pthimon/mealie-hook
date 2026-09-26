@@ -25,6 +25,7 @@ from .config import Config
 from .llm import LLM
 from .mealie import Mealie
 from .pipeline import Pipeline
+from .rules import RulesStore
 from .state import State
 
 
@@ -32,7 +33,8 @@ def build(cfg: Config) -> Pipeline:
     if not cfg.mealie_token:
         sys.exit("no Mealie token: set MEALIE_TOKEN or MEALIE_TOKEN_FILE")
     return Pipeline(cfg, Mealie(cfg.mealie_url, cfg.mealie_token),
-                    LLM(cfg.llm_url, cfg.llm_model, cfg.llm_timeout), State(cfg.data_dir))
+                    LLM(cfg.llm_url, cfg.llm_model, cfg.llm_timeout), State(cfg.data_dir),
+                    RulesStore(cfg.rules_dir, cfg.default_rules_dir))
 
 
 def show(res):

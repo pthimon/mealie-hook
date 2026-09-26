@@ -13,9 +13,10 @@ from . import MARKER_KEY, __version__, classify, ingredients, labels, scrape
 from .config import Config
 from .foods import Vocab, norm
 from .ingredients import NEW
-from .llm import LLM, LLMError, load_prompt
+from .llm import LLM, LLMError
 from .mealie import Mealie, MealieError
 from .models import Result
+from .rules import Rules, RulesStore
 from .state import State, now_iso, parse_ts
 
 log = logging.getLogger(__name__)
@@ -55,13 +56,26 @@ def preview_rows(ings: list[dict]) -> list[str]:
     return out
 
 
-class Pipeline:
-    def __init__(self, cfg: Config, mealie: Mealie, llm: LLM, state: State):
-        self.cfg, self.mealie, self.llm, self.state = cfg, mealie, llm, state
+def as_fresh_import(recipe: dict) -> dict:
+    """A copy of a filed recipe as a fresh scrape would have left it: raw ingredient lines
+    (section titles back as heading rows) and no category, tags or tools. Used to try rule
+    changes, and by `eval`, against recipes whose right answer is already known."""
+    r = copy.deepcopy(recipe)
+    raw = []
+    for ing in recipe.get("recipeIngredient") or []:
+        if ing.get("title"):
+            raw.append({"note": ing["title"], "originalText": ing["title"], "food": None})
+        text = ing.get("originalText") or ing.get("display") or ""
+        raw.append({"note": text, "originalText": text, "food": None, "unit": None,
+                    "quantity": 0})
+    r.update(recipeIngredient=raw, recipeCategory=[], tags=[], tools=[])
+    return r
 
-    def prompt(self, name: str) -> str:
-        # Read on every use, so a prompt edit on disk takes effect without a restart.
-        return load_prompt(self.cfg.prompts_dir, name)
+
+class Pipeline:
+    def __init__(self, cfg: Config, mealie: Mealie, llm: LLM, state: State,
+                 rules: RulesStore):
+        self.cfg, self.mealie, self.llm, self.state, self.rules = cfg, mealie, llm, state, rules
 
     # ------------------------------------------------------------------ candidates
 
@@ -117,8 +131,31 @@ class Pipeline:
 
     # --------------------------------------------------------------------- process
 
-    def process(self, slug: str, dry: bool = False, force: bool = False) -> Result:
+    def replay(self, slug: str, rules: Rules) -> Result:
+        """Run the model stages on a filed recipe as if freshly imported, writing nothing."""
         t0 = time.monotonic()
+        res = Result(slug=slug, status="replay")
+        r = as_fresh_import(self.mealie.recipe(slug))
+        foods_list = self.mealie.foods()
+        vocab = self._vocab(foods_list, rules)
+        equipment = self._parse_ingredients(r, vocab, rules, res.flags, res.changes)
+        res.new_foods, res.new_units = ingredients.new_records(r.get("recipeIngredient") or [])
+        self._classify(r, equipment, rules, res)
+        plan, _ = self._plan_labels(res.new_foods, foods_list, rules, res.flags)
+        res.changes += [f"new food {f!r} -> {p.get('label')}" + (f" (plural {p['plural']!r})"
+                        if p.get("plural") else "") for f, p in plan.items()]
+        res.preview = preview_rows(r.get("recipeIngredient") or [])
+        res.seconds = round(time.monotonic() - t0, 1)
+        return res
+
+    def _vocab(self, foods_list: list[dict], rules: Rules) -> Vocab:
+        return Vocab(foods_list, self.mealie.units(), rules.vocab.with_role("labels", "herbs"))
+
+    def process(self, slug: str, dry: bool = False, force: bool = False,
+                rules: Rules | None = None) -> Result:
+        t0 = time.monotonic()
+        # Read on every recipe, so an edit from the rules page applies to the next one.
+        rules = rules or self.rules.load()
         res = Result(slug=slug)
         r = self.mealie.recipe(slug)
         if not force:
@@ -134,12 +171,12 @@ class Pipeline:
 
         self._fix_scrape(r, flags, changes)
         foods_list = self.mealie.foods()
-        vocab = Vocab(foods_list, self.mealie.units())
-        equipment = self._parse_ingredients(r, vocab, flags, changes)
+        vocab = self._vocab(foods_list, rules)
+        equipment = self._parse_ingredients(r, vocab, rules, flags, changes)
         new_foods, new_units = ingredients.new_records(r.get("recipeIngredient") or [])
         res.new_foods, res.new_units = new_foods, new_units
-        tag_recs = self._classify(r, equipment, res)
-        label_plan, label_recs = self._plan_labels(new_foods, foods_list, flags)
+        tag_recs = self._classify(r, equipment, rules, res)
+        label_plan, label_recs = self._plan_labels(new_foods, foods_list, rules, flags)
 
         r["extras"] = {**(r.get("extras") or {}), MARKER_KEY: f"{__version__} {now_iso()}"}
         notes = [n for n in r.get("notes") or [] if n.get("title") != REVIEW_NOTE_TITLE]
@@ -202,14 +239,15 @@ class Pipeline:
             r["settings"] = settings
             changes.append("nutrition panel shown")
 
-    def _parse_ingredients(self, r: dict, vocab: Vocab, flags: list[str],
+    def _parse_ingredients(self, r: dict, vocab: Vocab, rules: Rules, flags: list[str],
                            changes: list[str]) -> list[str]:
         ings = r.get("recipeIngredient") or []
         lines = ingredients.unparsed_lines(ings)
         if not lines:
             return []
         try:
-            rows = ingredients.call_model(self.llm, self.prompt("ingredients"), lines, vocab)
+            rows = ingredients.call_model(self.llm, rules.render("ingredients.md", {}), lines,
+                                          vocab)
         except (LLMError, ValueError) as e:
             flags.append(f"ingredient parse failed, rows left as written: {e}")
             return []
@@ -224,19 +262,30 @@ class Pipeline:
             changes.append("equipment removed: " + "; ".join(pr.equipment))
         return pr.equipment
 
-    def _classify(self, r: dict, equipment: list[str], res: Result) -> dict[str, dict]:
+    def banned_tags(self, rules: Rules) -> set[str]:
+        return set(rules.vocab.with_role("tags", "provenance")) | {self.cfg.review_tag}
+
+    def live_names(self) -> dict[str, list[str]]:
+        return {"categories": [c["name"] for c in self.mealie.categories()],
+                "tags": [t["name"] for t in self.mealie.tags()],
+                "tools": [t["name"] for t in self.mealie.tools()],
+                "labels": [x["name"] for x in self.mealie.labels()]}
+
+    def _classify(self, r: dict, equipment: list[str], rules: Rules,
+                  res: Result) -> dict[str, dict]:
         cats = {c["name"]: c for c in self.mealie.categories()}
         tags = {t["name"]: t for t in self.mealie.tags()}
         tools = {t["name"]: t for t in self.mealie.tools()}
-        banned = set(self.cfg.provenance_tags) | {self.cfg.review_tag}
+        banned = self.banned_tags(rules)
+        live = {"categories": list(cats), "tags": list(tags), "tools": list(tools)}
         try:
-            c = classify.call_model(self.llm, self.prompt("classify"),
+            c = classify.call_model(self.llm, rules.render("classify.md", live, banned),
                                     classify.recipe_brief(r, equipment), list(cats),
                                     [t for t in tags if t not in banned], list(tools))
         except LLMError as e:
             res.flags.append(f"classification failed: {e}")
             return tags
-        c = classify.apply_rules(c, r, set(tags), set(tools), banned)
+        c = classify.apply_rules(c, r, set(tags), set(tools), banned, rules.vocab)
         res.flags += c.flags
         if not any(x.get("name") in cats for x in r.get("recipeCategory") or []):
             if c.category in cats:
@@ -248,7 +297,7 @@ class Pipeline:
         res.tools = [t["name"] for t in r["tools"]]
         return tags
 
-    def _plan_labels(self, new_foods: list[str], foods_list: list[dict],
+    def _plan_labels(self, new_foods: list[str], foods_list: list[dict], rules: Rules,
                      flags: list[str]) -> tuple[dict, dict]:
         if not new_foods:
             return {}, {}
@@ -259,8 +308,9 @@ class Pipeline:
             if name:
                 examples.setdefault(name, []).append(f["name"])
         try:
-            plan = labels.call_model(self.llm, self.prompt("labels"), new_foods,
-                                     list(label_recs), examples)
+            plan = labels.call_model(self.llm,
+                                     rules.render("labels.md", {"labels": list(label_recs)}),
+                                     new_foods, list(label_recs), examples)
         except LLMError as e:
             flags.append(f"aisle labelling failed; new foods left unlabelled: {e}")
             return {}, label_recs
