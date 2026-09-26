@@ -3,8 +3,8 @@ from pathlib import Path
 from mealie_hook.scrape import (extract_from_page, fill_nutrition, nutrition_from_ld, repair,
                                 scrape_problems)
 
-FIXTURE = (Path(__file__).parent / "fixtures" / "delicious_ramen.html").read_text()
-URL = "https://www.deliciousmagazine.co.uk/recipes/charred-chicken-ramen-bowls/"
+FIXTURE = (Path(__file__).parent / "fixtures" / "delicious_sample.html").read_text()
+URL = "https://www.deliciousmagazine.co.uk/recipes/example-stew/"
 
 
 def step(t):
@@ -51,14 +51,15 @@ def test_explicit_field_beats_nested():
 
 def test_delicious_page_extract():
     d = extract_from_page(URL, FIXTURE)
-    assert len(d["ingredients"]) == 19                      # 18 items + 1 section heading
-    assert d["ingredients"][11] == "For the ramen broth"
-    assert d["ingredients"][0] == "4 free-range skinless, boneless chicken thighs"
-    assert len(d["instructions"]) == 5                      # advertising pseudo-step dropped
+    assert len(d["ingredients"]) == 15                      # 14 items + 1 section heading
+    assert d["ingredients"][10] == "For the herby topping"
+    assert d["ingredients"][0] == "2 tbsp olive oil"
+    assert len(d["instructions"]) == 4                      # advertising pseudo-step dropped
     assert not any("advertising" in s.lower() for s in d["instructions"])
-    assert d["nutrition"]["saturatedFatContent"] == "2.3"
-    assert d["nutrition"]["sugarContent"] == "9.8"
-    assert d["nutrition"]["sodiumContent"] == "3.4"         # grams of salt, by convention
+    assert not any("Extradelicious" in s or "Extra delicious" in s for s in d["ingredients"])
+    assert d["nutrition"]["saturatedFatContent"] == "1.9"
+    assert d["nutrition"]["sugarContent"] == "12.3"
+    assert d["nutrition"]["sodiumContent"] == "1.2"         # grams of salt, by convention
     assert d["servings"] == 4
 
 
@@ -79,7 +80,7 @@ def test_repair_replaces_broken_content():
          "recipeInstructions": [step("Could not detect instructions")]}
     changed = repair(r, extract_from_page(URL, FIXTURE))
     assert len(changed) == 2
-    assert len(r["recipeIngredient"]) == 19 and r["recipeIngredient"][0]["food"] is None
+    assert len(r["recipeIngredient"]) == 15 and r["recipeIngredient"][0]["food"] is None
     assert scrape_problems(r)[0] == []
 
 
