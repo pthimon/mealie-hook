@@ -14,7 +14,7 @@ from mealie_toolkit.web import MealieAuth, create_app
 
 from fakes import FakeLLM, FakeMealie, base_recipe
 
-ADMIN = {"username": "simon", "admin": True}
+ADMIN = {"username": "cook", "admin": True}
 
 
 class StubWorker:
@@ -112,7 +112,7 @@ def test_chat_try_apply_revert(env):
     applied = post(c, f"/ui/api/proposals/{p['id']}/apply").json()
     assert "Duck" in applied["vocab"]["tags"]
     [h] = c.get("/ui/api/history").json()
-    assert h["summary"] == "duck is a protein" and h["who"] == "simon"
+    assert h["summary"] == "duck is a protein" and h["who"] == "cook"
     diff = c.get(f"/ui/api/history/{h['id']}").json()
     assert "+[tags.Duck]" in diff["vocabulary.toml"]
 

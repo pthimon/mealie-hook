@@ -1,12 +1,12 @@
 name: mealie-toolkit
 services:
   mealie-toolkit:
-    image: localhost/mealie-toolkit:latest # built by deploy.sh on marvin
+    image: localhost/mealie-toolkit:latest # built by deploy.sh on the host
     container_name: mealie-toolkit
     restart: unless-stopped
     mem_limit: 256m
-    # Rootless podman: keep-id maps host simon <-> container 1000, so ./data stays
-    # simon-owned and readable from the host (snapshots, run records, eval reports).
+    # Rootless podman: keep-id maps your host user <-> container 1000, so ./data stays
+    # owned by you and readable from the host (snapshots, run records, eval reports).
     userns_mode: keep-id
     user: ${PUID:-1000}:${PGID:-1000}
     env_file: .env # MEALIE_TOKEN lives here, never in git

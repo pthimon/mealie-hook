@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Ship this repo to marvin, build the image there and (re)start the stack via Dockge.
+# Ship this repo to the host, build the image there and (re)start the stack via Dockge.
+# The ssh host comes from $HOST, or from a gitignored ./deploy.local (e.g. HOST=myserver).
 #   ./deploy.sh            build + restart
 #   ./deploy.sh --no-up    build only
 set -euo pipefail
 
-HOST=${HOST:-homelab}
-DEST=${DEST:-compose/mealie-toolkit}   # relative to ~ on the host
 cd "$(dirname "$0")"
+[ -f deploy.local ] && . ./deploy.local
+HOST=${HOST:?set HOST to the ssh host that runs the stack, or put HOST=... in deploy.local}
+DEST=${DEST:-compose/mealie-toolkit}   # relative to ~ on the host
 
 rsync -a --delete \
-  --exclude .git --exclude .env --exclude data/ --exclude export/ \
+  --exclude .git --exclude .env --exclude deploy.local --exclude data/ --exclude export/ \
   --exclude __pycache__ --exclude .venv --exclude .pytest_cache --exclude '*.egg-info' \
   ./ "$HOST:$DEST/"
 

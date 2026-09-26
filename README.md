@@ -4,10 +4,9 @@ A companion service for a self-hosted [Mealie](https://mealie.io). It does two j
 finishes off recipes as they are imported (below), and serves the **Mealie Toolkit** page
 on Mealie's own domain: meal plan to shopping list with per-meal sizes, the shopping export,
 the review queue and the processing rules ([The page](#the-page-mealie-toolkit-at-recipesdomaintoolkit)).
-It was called mealie-hook until 2026-09-26.
 
-The recipe processing used to be done by hand through a Claude Code skill; this service does
-it in code, with the judgement calls made by the local Qwen model on marvin's llama-server.
+The recipe processing is done in code, with the judgement calls made by the local Qwen model
+served by llama.cpp's llama-server (any OpenAI-compatible endpoint will do).
 
 For every recipe imported from a URL it:
 
@@ -47,8 +46,7 @@ created since the service first started, and not yet marked processed. A periodi
 (`SWEEP_MINUTES`) catches lost events. Hand-written recipes (no `orgURL`) are never touched.
 
 "Processed" is recorded in the recipe's `extras` (`mealie-hook: <version> <time>`), so it
-survives a lost `data/` directory. The key keeps the service's original name so that
-recipes processed before the rename stay processed.
+survives a lost `data/` directory.
 
 ### Safety
 
@@ -162,14 +160,20 @@ rules/            shipped default rules
 tests/            offline tests (fake Mealie, fake model, FastAPI test client)
 ```
 
-## Deploy (marvin)
+## Deploy
+
+The deploy script assumes a host running rootless Podman and
+[Dockge](https://github.com/louislam/dockge), with compose stacks under `~/compose`, reached
+over ssh. Set the ssh host once in a gitignored `deploy.local` (`HOST=myserver`), or pass
+`HOST=...` on each run.
 
 One-time setup:
 
 ```bash
-ssh homelab 'mkdir -p ~/compose/mealie-toolkit'
+HOST=myserver
+ssh $HOST 'mkdir -p ~/compose/mealie-toolkit'
 # create an API token in Mealie (Profile -> API Tokens, name "mealie-toolkit"), then:
-ssh homelab 'cat > ~/compose/mealie-toolkit/.env && chmod 600 ~/compose/mealie-toolkit/.env' <<< 'MEALIE_TOKEN=...'
+ssh $HOST 'cat > ~/compose/mealie-toolkit/.env && chmod 600 ~/compose/mealie-toolkit/.env' <<< 'MEALIE_TOKEN=...'
 ```
 
 For the Shopping tab, add Home Assistant to the same `.env` (optional):
@@ -182,14 +186,14 @@ HA_TOKEN=<long-lived access token>
 Then, from this directory, and again after every change:
 
 ```bash
-./deploy.sh        # rsync -> podman build on marvin -> docker compose up -d (via Dockge)
+./deploy.sh        # rsync -> podman build on the host -> docker compose up -d (via Dockge)
 ```
 
 Finally point Mealie's notifier at it (creates or updates one named `mealie-toolkit`, enabled,
 firing on **Recipe Created** only):
 
 ```bash
-ssh homelab 'podman exec mealie-toolkit python -m mealie_toolkit notifier --create'
+ssh $HOST 'podman exec mealie-toolkit python -m mealie_toolkit notifier --create'
 ```
 
 (In the UI it lives under Settings → Household → Notifiers; `--delete` removes it.)
@@ -202,7 +206,6 @@ Caddy serves the page on Mealie's domain; only `/ui` is exposed, never `/hook`:
 ```
 recipes.example.com {
     redir /toolkit /toolkit/
-    redir /rules* /toolkit/          # the page's old address
     handle_path /toolkit/* {
         rewrite * /ui{path}
         reverse_proxy mealie-toolkit:8000
@@ -217,14 +220,14 @@ recipes.example.com {
 
 ```bash
 C='podman exec mealie-toolkit python -m mealie_toolkit'
-ssh homelab "$C candidates"                    # what the next sweep would take
-ssh homelab "$C process SLUG --dry"            # full pipeline, print result, write nothing
-ssh homelab "$C process SLUG --force"          # (re)process one recipe now, even an old one
-ssh homelab "$C undo SLUG"                     # restore the pre-edit snapshot
-ssh homelab "$C eval 20"                       # agreement vs 20 already-filed recipes
-ssh homelab "$C export /data/export"           # tracking JSON -> ~/compose/mealie-toolkit/data/export
-ssh homelab 'podman logs -f mealie-toolkit'
-ssh homelab 'podman exec mealie-toolkit python -c "import urllib.request as u;print(u.urlopen(\"http://localhost:8000/health\").read().decode())"'
+ssh $HOST "$C candidates"                    # what the next sweep would take
+ssh $HOST "$C process SLUG --dry"            # full pipeline, print result, write nothing
+ssh $HOST "$C process SLUG --force"          # (re)process one recipe now, even an old one
+ssh $HOST "$C undo SLUG"                     # restore the pre-edit snapshot
+ssh $HOST "$C eval 20"                       # agreement vs 20 already-filed recipes
+ssh $HOST "$C export /data/export"           # tracking JSON -> ~/compose/mealie-toolkit/data/export
+ssh $HOST 'podman logs -f mealie-toolkit'
+ssh $HOST 'podman exec mealie-toolkit python -c "import urllib.request as u;print(u.urlopen(\"http://localhost:8000/health\").read().decode())"'
 ```
 
 Filter by the **Needs review** tag in Mealie to see what needs a human. Delete the tag

@@ -63,10 +63,10 @@ def test_drift_reports_all_three_kinds(store):
 
 def test_save_snapshots_and_revert(store):
     original = store.texts()["labels.md"]
-    snap = store.save({"labels.md": original + "\nExtra line.\n"}, "add a line", "simon")
+    snap = store.save({"labels.md": original + "\nExtra line.\n"}, "add a line", "cook")
     assert "Extra line." in store.texts()["labels.md"]
     [h] = store.list_history()
-    assert h["id"] == snap and h["summary"] == "add a line" and h["who"] == "simon"
+    assert h["id"] == snap and h["summary"] == "add a line" and h["who"] == "cook"
     store.revert(snap)
     assert store.texts()["labels.md"] == original
     assert len(store.list_history()) == 2                 # the revert is itself undoable

@@ -1,4 +1,5 @@
 .env
+deploy.local
 data/
 export/
 __pycache__/
