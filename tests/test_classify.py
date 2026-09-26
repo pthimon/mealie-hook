@@ -1,9 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from mealie_hook.classify import Classification, apply_rules
-from mealie_hook.models import classification_reply
-from mealie_hook.rules import Vocabulary
+from mealie_toolkit.classify import Classification, apply_rules
+from mealie_toolkit.models import classification_reply
+from mealie_toolkit.rules import Vocabulary
 
 VOCAB = Vocabulary.model_validate({
     "categories": {"Dinner": {"roles": ["main"]}, "Lunch": {"roles": ["main"]}},

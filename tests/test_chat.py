@@ -1,9 +1,9 @@
 import pytest
 
-from mealie_hook.chat import (EditProposal, ProposalStore, apply_proposal, history_line, propose,
+from mealie_toolkit.chat import (EditProposal, ProposalStore, apply_proposal, history_line, propose,
                               suggested_creates)
-from mealie_hook.config import ROOT
-from mealie_hook.rules import VOCAB_FILE, RulesStore, Vocabulary
+from mealie_toolkit.config import ROOT
+from mealie_toolkit.rules import VOCAB_FILE, RulesStore, Vocabulary
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def test_store_and_history_line():
 
 
 def test_guidance_change_is_a_one_line_diff(texts):
-    from mealie_hook.rules import unified
+    from mealie_toolkit.rules import unified
     a = apply_proposal(texts, P(vocab_ops=[{"op": "set", "kind": "categories", "name": "Dinner",
                                              "guidance": "Evening mains."}]))
     diff = unified(texts[VOCAB_FILE], a.texts[VOCAB_FILE], VOCAB_FILE)

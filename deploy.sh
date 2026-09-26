@@ -5,7 +5,7 @@
 set -euo pipefail
 
 HOST=${HOST:-homelab}
-DEST=${DEST:-compose/mealie-hook}   # relative to ~ on the host
+DEST=${DEST:-compose/mealie-toolkit}   # relative to ~ on the host
 cd "$(dirname "$0")"
 
 rsync -a --delete \
@@ -18,7 +18,7 @@ ssh "$HOST" "set -e
   mkdir -p data
   test -f .env || { echo 'no .env on the host: copy .env.example to .env and set MEALIE_TOKEN'; exit 1; }
   chmod 600 .env
-  podman build -q -t localhost/mealie-hook:latest -f Containerfile .
+  podman build -q -t localhost/mealie-toolkit:latest -f Containerfile .
   if [ \"${1:-}\" != --no-up ]; then
     podman exec -w \$HOME/$DEST dockge docker compose up -d
   fi"

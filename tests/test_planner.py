@@ -1,7 +1,7 @@
 import json
 
-from mealie_hook import planner
-from mealie_hook.state import State
+from mealie_toolkit import planner
+from mealie_toolkit.state import State
 
 from fakes import FakeMealie
 from test_web import ADMIN, env, post  # noqa: F401  (env is a fixture)

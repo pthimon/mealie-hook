@@ -3,12 +3,12 @@ import json
 
 import pytest
 
-from mealie_hook import MARKER_KEY
-from mealie_hook.config import ROOT, Config
-from mealie_hook.pipeline import REVIEW_NOTE_TITLE, Pipeline
-from mealie_hook.rules import RulesStore
-from mealie_hook.server import Worker, handle_event, parse_document_data
-from mealie_hook.state import State
+from mealie_toolkit import MARKER_KEY
+from mealie_toolkit.config import ROOT, Config
+from mealie_toolkit.pipeline import REVIEW_NOTE_TITLE, Pipeline
+from mealie_toolkit.rules import RulesStore
+from mealie_toolkit.server import Worker, handle_event, parse_document_data
+from mealie_toolkit.state import State
 
 from fakes import FakeLLM, FakeMealie, base_recipe, raw
 
@@ -67,7 +67,7 @@ def test_new_units_are_created_with_their_plural(make):
 
 
 def test_unit_plurals_table():
-    from mealie_hook.foods import ALLOWED_UNITS, UNIT_PLURALS
+    from mealie_toolkit.foods import ALLOWED_UNITS, UNIT_PLURALS
     assert UNIT_PLURALS["clove"] == "cloves" and UNIT_PLURALS["bunch"] == "bunches"
     assert UNIT_PLURALS["punnet"] == "punnets" and UNIT_PLURALS["pinch"] == "pinches"
     assert not {"g", "kg", "ml", "l", "tsp", "tbsp", "dsp"} & set(UNIT_PLURALS)

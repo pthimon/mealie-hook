@@ -1,9 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from mealie_hook.foods import Vocab
-from mealie_hook.ingredients import NEW, apply_rows, new_records, resolve_row, unparsed_lines
-from mealie_hook.models import IngredientRow, ingredient_reply
+from mealie_toolkit.foods import Vocab
+from mealie_toolkit.ingredients import NEW, apply_rows, new_records, resolve_row, unparsed_lines
+from mealie_toolkit.models import IngredientRow, ingredient_reply
 
 FOODS = [{"id": f"f-{n}", "name": n} for n in
          ["carrot", "sesame oil", "coriander", "garlic", "ginger", "chicken stock"]]
@@ -171,7 +171,7 @@ class FlakyLLM:
 
 
 def test_row_order_mismatch_retried(vocab):
-    from mealie_hook.ingredients import call_model
+    from mealie_toolkit.ingredients import call_model
     bad = {"rows": [row(1, q=1, food="carrot").model_dump(), row(1, q=1, food="garlic").model_dump()]}
     good = {"rows": [row(0, q=1, food="carrot").model_dump(), row(1, q=1, food="garlic").model_dump()]}
     rows = call_model(FlakyLLM([bad, good]), "", [(0, "1 carrot"), (1, "1 garlic")], vocab)

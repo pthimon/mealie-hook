@@ -5,12 +5,12 @@ import pytest
 from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 
-from mealie_hook.config import ROOT, Config
-from mealie_hook.pipeline import REVIEW_NOTE_TITLE, Pipeline
-from mealie_hook.rules import RulesStore
-from mealie_hook.shopping import build, tick
-from mealie_hook.state import State
-from mealie_hook.web import MealieAuth, create_app
+from mealie_toolkit.config import ROOT, Config
+from mealie_toolkit.pipeline import REVIEW_NOTE_TITLE, Pipeline
+from mealie_toolkit.rules import RulesStore
+from mealie_toolkit.shopping import build, tick
+from mealie_toolkit.state import State
+from mealie_toolkit.web import MealieAuth, create_app
 
 from fakes import FakeLLM, FakeMealie, base_recipe
 
@@ -235,7 +235,7 @@ def test_since_splits_out_items_from_before_the_forgotten_shop():
     old = {r["line"] for r in s["mealie"] if r["old"]}
     assert old == {"carrots"}                         # passata was topped up after, so new
     assert sorted(s["text"].split("\n")) == ["bin bags", "passata"]
-    from mealie_hook.state import parse_ts
+    from mealie_toolkit.state import parse_ts
     assert parse_ts(s["since"]) == parse_ts("2026-09-04T23:00:00Z")   # same instant
 
 

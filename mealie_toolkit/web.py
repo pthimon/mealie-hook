@@ -4,7 +4,7 @@ Two audiences on one app:
 
 * `/hook`, `/sweep`, `/health` -- internal. Mealie's notifier POSTs to /hook over the
   container network. Caddy never routes here.
-* `/ui/...` -- the page and its JSON API. Caddy serves it as recipes.<domain>/rules/ by
+* `/ui/...` -- the page and its JSON API. Caddy serves it as recipes.<domain>/toolkit/ by
   rewriting that prefix to /ui, so it is same-origin with Mealie and the browser sends
   Mealie's own login cookie. Every /ui/api call checks that cookie against Mealie
   (`/api/users/self`) and requires an admin.
@@ -125,7 +125,7 @@ class PlanAddIn(BaseModel):
 def create_app(pipeline: Pipeline, worker, auth=None) -> FastAPI:
     from .server import handle_event                 # avoid an import cycle
 
-    app = FastAPI(title="mealie-hook", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="mealie-toolkit", docs_url=None, redoc_url=None, openapi_url=None)
     auth = auth or MealieAuth(pipeline.cfg.mealie_url)
     store = pipeline.rules
     proposals = chat.ProposalStore()

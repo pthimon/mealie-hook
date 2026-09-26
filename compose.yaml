@@ -1,8 +1,8 @@
-name: mealie-hook
+name: mealie-toolkit
 services:
-  mealie-hook:
-    image: localhost/mealie-hook:latest # built by deploy.sh on marvin
-    container_name: mealie-hook
+  mealie-toolkit:
+    image: localhost/mealie-toolkit:latest # built by deploy.sh on marvin
+    container_name: mealie-toolkit
     restart: unless-stopped
     mem_limit: 256m
     # Rootless podman: keep-id maps host simon <-> container 1000, so ./data stays
@@ -16,9 +16,9 @@ services:
       DATA_DIR: /data
     volumes:
       - ./data:/data:z
-      # The live rules (vocabulary + prompts, edited from the rules page) are in ./data/rules.
-    # No published port. Mealie reaches the hook as http://mealie-hook:8000 over its network;
-    # Caddy (on `proxy`) serves only the /ui pages, as <mealie domain>/rules/.
+      # The live rules (vocabulary + prompts, edited from the Toolkit page) are in ./data/rules.
+    # No published port. Mealie reaches the hook as http://mealie-toolkit:8000 over its network;
+    # Caddy (on `proxy`) serves only the /ui pages, as <mealie domain>/toolkit/.
     networks:
       - mealie
       - proxy

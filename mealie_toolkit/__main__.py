@@ -1,4 +1,4 @@
-"""Command line: `python -m mealie_hook <command>`.
+"""Command line: `python -m mealie_toolkit <command>`.
 
     serve                          run the webhook receiver and worker (the container default)
     candidates                     list recipes the next sweep would process
@@ -11,7 +11,7 @@
     undo SLUG                      restore the recipe from its latest pre-edit snapshot
     notifier [--create | --delete] [--name N] [--url U]
                                    show, create/enable, or remove the Mealie notifier
-                                   (default name mealie-hook, url json://mealie-hook:PORT/hook)
+                                   (default name mealie-toolkit, url json://mealie-toolkit:PORT/hook)
     export [DIR]                   write the tracking JSON files from Mealie (default ./export)
 """
 
@@ -54,7 +54,7 @@ def show(res):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="mealie_hook", description=__doc__,
+    ap = argparse.ArgumentParser(prog="mealie_toolkit", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command")
     ap.add_argument("args", nargs="*")
@@ -64,7 +64,7 @@ def main(argv=None):
     ap.add_argument("--slug", action="append", default=[])
     ap.add_argument("--create", action="store_true")
     ap.add_argument("--delete", action="store_true")
-    ap.add_argument("--name", default="mealie-hook")
+    ap.add_argument("--name", default="mealie-toolkit")
     ap.add_argument("--url")
     ap.add_argument("-v", "--verbose", action="store_true")
     a = ap.parse_args(argv)
@@ -129,7 +129,7 @@ def main(argv=None):
               " (foods and units it created are left in place)")
     elif a.command == "notifier":
         mealie = Mealie(cfg.mealie_url, cfg.mealie_token)
-        url = a.url or f"json://mealie-hook:{cfg.port}/hook"
+        url = a.url or f"json://mealie-toolkit:{cfg.port}/hook"
         if a.create:
             n = mealie.ensure_notifier(a.name, url)
             print(f"notifier {n['name']!r} enabled={n['enabled']} "

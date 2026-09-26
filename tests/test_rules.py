@@ -1,7 +1,7 @@
 import pytest
 
-from mealie_hook.config import ROOT
-from mealie_hook.rules import (FILES, VOCAB_FILE, Rules, RulesError, RulesStore, Vocabulary)
+from mealie_toolkit.config import ROOT
+from mealie_toolkit.rules import (FILES, VOCAB_FILE, Rules, RulesError, RulesStore, Vocabulary)
 
 LIVE = {"categories": ["Dinner", "Lunch", "Breakfast", "Dessert", "Snack", "Side"],
         "tags": ["Chicken", "Summer", "Winter", "Savoury", "Food for Life Cookbook", "Needs review",

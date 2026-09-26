@@ -1,6 +1,6 @@
-from mealie_hook import bought, planner
-from mealie_hook.shopping import tick
-from mealie_hook.state import State
+from mealie_toolkit import bought, planner
+from mealie_toolkit.shopping import tick
+from mealie_toolkit.state import State
 
 from fakes import FakeMealie
 from test_planner import mealie_with_plan

@@ -1,7 +1,7 @@
 [project]
-name = "mealie-hook"
+name = "mealie-toolkit"
 version = "0.1.0"
-description = "Post-import processing for Mealie recipes, triggered by Mealie's recipe_created event and driven by a local LLM"
+description = "Mealie companion: post-import recipe processing with a local LLM, and the Mealie Toolkit page (plan to shopping list, shopping export, review, rules)"
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.12",
@@ -16,17 +16,17 @@ dependencies = [
 dev = ["pytest>=8"]
 
 [project.scripts]
-mealie-hook = "mealie_hook.__main__:main"
+mealie-toolkit = "mealie_toolkit.__main__:main"
 
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["mealie_hook"]
+packages = ["mealie_toolkit"]
 
 [tool.setuptools.package-data]
-mealie_hook = ["editor.md", "ui/*.html"]
+mealie_toolkit = ["editor.md", "ui/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

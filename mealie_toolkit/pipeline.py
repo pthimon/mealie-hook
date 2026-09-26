@@ -21,6 +21,7 @@ from .state import State, now_iso, parse_ts
 
 log = logging.getLogger(__name__)
 
+# Matched by title to clear the note, and already written on recipes: keeps the original name.
 REVIEW_NOTE_TITLE = "Needs review (mealie-hook)"
 
 

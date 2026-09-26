@@ -1,9 +1,13 @@
-# mealie-hook
+# mealie-toolkit
 
-Finishes off recipes imported into a self-hosted [Mealie](https://mealie.io) instance, as
-soon as they are imported. The work was previously done by hand through a Claude Code skill;
-this service does it in code, with the judgement calls made by the local Qwen model on
-marvin's llama-server.
+A companion service for a self-hosted [Mealie](https://mealie.io). It does two jobs:
+finishes off recipes as they are imported (below), and serves the **Mealie Toolkit** page
+on Mealie's own domain: meal plan to shopping list with per-meal sizes, the shopping export,
+the review queue and the processing rules ([The page](#the-page-mealie-toolkit-at-recipesdomaintoolkit)).
+It was called mealie-hook until 2026-09-26.
+
+The recipe processing used to be done by hand through a Claude Code skill; this service does
+it in code, with the judgement calls made by the local Qwen model on marvin's llama-server.
 
 For every recipe imported from a URL it:
 
@@ -43,7 +47,8 @@ created since the service first started, and not yet marked processed. A periodi
 (`SWEEP_MINUTES`) catches lost events. Hand-written recipes (no `orgURL`) are never touched.
 
 "Processed" is recorded in the recipe's `extras` (`mealie-hook: <version> <time>`), so it
-survives a lost `data/` directory.
+survives a lost `data/` directory. The key keeps the service's original name so that
+recipes processed before the rename stay processed.
 
 ### Safety
 
@@ -59,7 +64,7 @@ survives a lost `data/` directory.
   false}`, so the shared llama-server keeps its defaults. Typical cost is ~20s for
   ingredients plus ~3s to classify.
 
-## The page: Mealie Toolkit, at recipes.<domain>/rules/
+## The page: Mealie Toolkit, at recipes.<domain>/toolkit/
 
 Served by this service, through Caddy, on Mealie's own domain, and styled to match Mealie
 (its default theme, following the system's light or dark setting). It uses your Mealie login
@@ -131,7 +136,7 @@ so edits apply immediately, with no redeploy, and image rebuilds never overwrite
 ## Layout
 
 ```
-mealie_hook/
+mealie_toolkit/
   __main__.py     CLI
   server.py       worker (settle, bulk-report wait, periodic sweep) + event parsing
   web.py          FastAPI: internal /hook, and the /ui page + API (Mealie-login auth)
@@ -162,9 +167,9 @@ tests/            offline tests (fake Mealie, fake model, FastAPI test client)
 One-time setup:
 
 ```bash
-ssh homelab 'mkdir -p ~/compose/mealie-hook'
-# create an API token in Mealie (Profile -> API Tokens, name "mealie-hook"), then:
-ssh homelab 'cat > ~/compose/mealie-hook/.env && chmod 600 ~/compose/mealie-hook/.env' <<< 'MEALIE_TOKEN=...'
+ssh homelab 'mkdir -p ~/compose/mealie-toolkit'
+# create an API token in Mealie (Profile -> API Tokens, name "mealie-toolkit"), then:
+ssh homelab 'cat > ~/compose/mealie-toolkit/.env && chmod 600 ~/compose/mealie-toolkit/.env' <<< 'MEALIE_TOKEN=...'
 ```
 
 For the Shopping tab, add Home Assistant to the same `.env` (optional):
@@ -180,11 +185,11 @@ Then, from this directory, and again after every change:
 ./deploy.sh        # rsync -> podman build on marvin -> docker compose up -d (via Dockge)
 ```
 
-Finally point Mealie's notifier at it (creates or updates one named `mealie-hook`, enabled,
+Finally point Mealie's notifier at it (creates or updates one named `mealie-toolkit`, enabled,
 firing on **Recipe Created** only):
 
 ```bash
-ssh homelab 'podman exec mealie-hook python -m mealie_hook notifier --create'
+ssh homelab 'podman exec mealie-toolkit python -m mealie_toolkit notifier --create'
 ```
 
 (In the UI it lives under Settings → Household → Notifiers; `--delete` removes it.)
@@ -196,10 +201,11 @@ Caddy serves the page on Mealie's domain; only `/ui` is exposed, never `/hook`:
 
 ```
 recipes.example.com {
-    redir /rules /rules/
-    handle_path /rules/* {
+    redir /toolkit /toolkit/
+    redir /rules* /toolkit/          # the page's old address
+    handle_path /toolkit/* {
         rewrite * /ui{path}
-        reverse_proxy mealie-hook:8000
+        reverse_proxy mealie-toolkit:8000
     }
     handle {
         reverse_proxy mealie:9000
@@ -210,15 +216,15 @@ recipes.example.com {
 ## Operating
 
 ```bash
-C='podman exec mealie-hook python -m mealie_hook'
+C='podman exec mealie-toolkit python -m mealie_toolkit'
 ssh homelab "$C candidates"                    # what the next sweep would take
 ssh homelab "$C process SLUG --dry"            # full pipeline, print result, write nothing
 ssh homelab "$C process SLUG --force"          # (re)process one recipe now, even an old one
 ssh homelab "$C undo SLUG"                     # restore the pre-edit snapshot
 ssh homelab "$C eval 20"                       # agreement vs 20 already-filed recipes
-ssh homelab "$C export /data/export"           # tracking JSON -> ~/compose/mealie-hook/data/export
-ssh homelab 'podman logs -f mealie-hook'
-ssh homelab 'podman exec mealie-hook python -c "import urllib.request as u;print(u.urlopen(\"http://localhost:8000/health\").read().decode())"'
+ssh homelab "$C export /data/export"           # tracking JSON -> ~/compose/mealie-toolkit/data/export
+ssh homelab 'podman logs -f mealie-toolkit'
+ssh homelab 'podman exec mealie-toolkit python -c "import urllib.request as u;print(u.urlopen(\"http://localhost:8000/health\").read().decode())"'
 ```
 
 Filter by the **Needs review** tag in Mealie to see what needs a human. Delete the tag

@@ -1,6 +1,6 @@
 import pytest
 
-from mealie_hook.foods import (Vocab, canonical_unit, find_duplicate_pairs, leading_quantity,
+from mealie_toolkit.foods import (Vocab, canonical_unit, find_duplicate_pairs, leading_quantity,
                                leading_unit, looks_prepped, recover_vague_unit)
 
 DUPLICATE_CASES = [

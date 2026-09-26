@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from mealie_hook.scrape import (extract_from_page, fill_nutrition, nutrition_from_ld, repair,
+from mealie_toolkit.scrape import (extract_from_page, fill_nutrition, nutrition_from_ld, repair,
                                 scrape_problems)
 
 FIXTURE = (Path(__file__).parent / "fixtures" / "delicious_sample.html").read_text()

@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 COPY pyproject.toml ./
-COPY mealie_hook ./mealie_hook
+COPY mealie_toolkit ./mealie_toolkit
 RUN pip install .
 # The shipped default rules. On first start they are copied to /data/rules, which is the
 # live copy edited from the rules page; later image rebuilds never overwrite it.
@@ -17,5 +17,5 @@ COPY rules ./rules
 
 USER 1000:1000
 EXPOSE 8000
-ENTRYPOINT ["python", "-m", "mealie_hook"]
+ENTRYPOINT ["python", "-m", "mealie_toolkit"]
 CMD ["serve"]
