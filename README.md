@@ -68,6 +68,11 @@ Mealie admins only.
   already covers are crossed out. **Copy** puts the list on the clipboard. **Tick all
   off** ticks exactly the items shown in both places; anything added since the page loaded
   is left alone.
+  Forgot to tick off after a shop? Set **added since** to that shop's date: Mealie items
+  last added to before it move to a "probably bought already" group, drop out of the
+  export, and get their own **Tick off these** button. An item topped up by a later recipe
+  counts as new. Home Assistant items have no dates, so they always stay in the export. The
+  page shows when you last ticked off, as a reminder.
 - **Needs review**: flagged recipes with their reasons, linked into Mealie. **Mark
   reviewed** removes the tag and the note.
 - **Rules**: every category, tag, tool and aisle with its guidance and roles, the prompts

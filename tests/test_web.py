@@ -225,3 +225,35 @@ def test_real_auth_rejects_missing_cookie():
     with pytest.raises(HTTPException) as e:
         dep(Request(scope))
     assert e.value.status_code == 401
+
+
+SINCE = "2026-09-05T00:00:00+01:00"      # the forgotten shop, as the browser sends it
+
+
+def test_since_splits_out_items_from_before_the_forgotten_shop():
+    s = build(FakeMealie(), None, since=SINCE)
+    old = {r["line"] for r in s["mealie"] if r["old"]}
+    assert old == {"carrots"}                         # passata was topped up after, so new
+    assert sorted(s["text"].split("\n")) == ["bin bags", "passata"]
+    from mealie_hook.state import parse_ts
+    assert parse_ts(s["since"]) == parse_ts("2026-09-04T23:00:00Z")   # same instant
+
+
+def test_bought_item_does_not_hide_a_new_ha_request():
+    ha = FakeHA([{"id": "h1", "name": "Carrot", "complete": False}])
+    s = build(FakeMealie(), ha, since=SINCE)
+    assert s["ha"] == [{"id": "h1", "line": "Carrot", "duplicate": False}]
+    assert "Carrot" in s["text"].split("\n")
+
+
+def test_no_since_means_nothing_is_old():
+    assert not any(r["old"] for r in build(FakeMealie(), None)["mealie"])
+
+
+def test_tick_records_last_tick_for_the_hint(env):
+    c = env["client"]()
+    assert c.get("/ui/api/shopping").json()["last_tick"] is None
+    post(c, "/ui/api/shopping/tick", {"list_id": "L1", "mealie_ids": ["m1"]})
+    assert c.get("/ui/api/shopping").json()["last_tick"]
+    r = c.get("/ui/api/shopping", params={"since": SINCE}).json()
+    assert [x["line"] for x in r["mealie"] if x["old"]] == []   # m1 is ticked now

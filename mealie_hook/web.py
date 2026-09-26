@@ -286,12 +286,14 @@ def create_app(pipeline: Pipeline, worker, auth=None) -> FastAPI:
 
     @app.get("/ui/api/shopping")
     def shopping_view(list_id: str | None = None, quantities: bool = False,
-                      user=Depends(auth)):
-        return shopping.build(pipeline.mealie, ha, list_id, quantities)
+                      since: str | None = None, user=Depends(auth)):
+        view = shopping.build(pipeline.mealie, ha, list_id, quantities, since)
+        return {**view, "last_tick": pipeline.state.data.get("last_tick")}
 
     @app.post("/ui/api/shopping/tick", dependencies=user_dep)
     def shopping_tick(body: TickIn, user=Depends(auth)):
         res = shopping.tick(pipeline.mealie, ha, body.list_id, body.mealie_ids, body.ha_ids)
+        pipeline.state.ticked()
         log.info("%s ticked off shopping: %s", who(user), res)
         return res
 

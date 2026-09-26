@@ -8,6 +8,12 @@ rest).
 
 Ticking takes the exact items the page showed, so anything added after it was loaded is
 left outstanding.
+
+`since` is for a shop that was never ticked off: Mealie items last added to before it are
+split out as "probably bought already", left out of the export, and can be ticked off on
+their own. "Last added to" is `updatedAt`, because Mealie merges a recipe's carrots into an
+existing carrots item and bumps it, so topped-up items correctly count as new. Home
+Assistant items carry no dates at all, so they are never split.
 """
 
 import logging
@@ -16,6 +22,7 @@ import httpx
 
 from .foods import norm
 from .mealie import Mealie
+from .state import parse_ts
 
 log = logging.getLogger(__name__)
 
@@ -60,23 +67,30 @@ def mealie_line(item: dict, quantities: bool) -> str:
 
 
 def build(mealie: Mealie, ha: HomeAssistant | None, list_id: str | None = None,
-          quantities: bool = False) -> dict:
+          quantities: bool = False, since: str | None = None) -> dict:
     lists = mealie.shopping_lists()
     if not lists:
         return {"lists": [], "error": "no shopping lists in Mealie"}
     target = next((x for x in lists if x["id"] == list_id), lists[0])
     items = [i for i in (mealie.shopping_list(target["id"]).get("listItems") or [])
              if not i.get("checked")]
-    m_rows = []
+    cutoff = parse_ts(since) if since else None
+    m_rows, covered = [], set()
     for i in items:
         line = mealie_line(i, quantities)
+        added = parse_ts(i.get("updatedAt") or i.get("createdAt"))
+        old = bool(cutoff and added and added < cutoff)
+        if i.get("food") and not old:
+            # only what is still to buy hides an HA duplicate: carrots bought at the forgotten
+            # shop must not swallow a newly added HA "carrot"
+            covered.add(norm(i["food"].get("name")))
         if line:
             m_rows.append({"id": i["id"], "line": line,
+                           "added": added.isoformat() if added else None, "old": old,
                            "detail": (i.get("display") or line).strip(),
                            "label": ((i.get("label") or {}).get("name")
                                      or ((i.get("food") or {}).get("label") or {}).get("name")
                                      or "")})
-    covered = {norm((i.get("food") or {}).get("name")) for i in items if i.get("food")}
     h_rows, ha_error = [], None
     if ha and ha.enabled:
         try:
@@ -91,13 +105,14 @@ def build(mealie: Mealie, ha: HomeAssistant | None, list_id: str | None = None,
         except Exception as e:
             ha_error = f"could not reach Home Assistant: {type(e).__name__}"
             log.warning("home assistant: %s", e)
-    text = "\n".join([r["line"] for r in m_rows] + [r["line"] for r in h_rows if not r["duplicate"]])
+    text = "\n".join([r["line"] for r in m_rows if not r["old"]]
+                     + [r["line"] for r in h_rows if not r["duplicate"]])
     return {
         "lists": [{"id": x["id"], "name": x["name"]} for x in lists],
         "list": {"id": target["id"], "name": target["name"]},
         "mealie": sorted(m_rows, key=lambda r: (r["label"] or "~", r["line"].lower())),
         "ha": h_rows, "ha_enabled": bool(ha and ha.enabled), "ha_error": ha_error,
-        "text": text,
+        "text": text, "since": cutoff.isoformat() if cutoff else None,
     }
 
 

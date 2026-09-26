@@ -106,14 +106,23 @@ details summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
       <div class="row">
         <select id="shop-list" style="width:auto"></select>
         <label class="small"><input type="checkbox" id="shop-qty"> include quantities</label>
+        <label class="small row" style="gap:4px">added since
+          <input type="date" id="shop-since" style="width:auto;padding:4px 6px"></label>
+        <button class="btn small" id="shop-since-clear" hidden>clear</button>
         <span style="flex:1"></span>
         <button class="btn primary" id="shop-copy">Copy</button>
         <button class="btn" id="shop-tick">Tick all off</button>
       </div>
       <div id="shop-status" class="small muted" style="margin-top:8px"></div>
+      <div id="shop-hint" class="small muted"></div>
     </div>
     <div class="grid2">
-      <div class="panel"><h2>Mealie <span class="muted small" id="shop-mcount"></span></h2><ul class="items" id="shop-mealie"></ul></div>
+      <div class="panel"><h2>Mealie <span class="muted small" id="shop-mcount"></span></h2><ul class="items" id="shop-mealie"></ul>
+        <div id="shop-old" hidden>
+          <h3 id="shop-old-title"></h3>
+          <ul class="items" id="shop-old-list" style="opacity:.6"></ul>
+          <button class="btn" id="shop-tick-old" style="margin-top:8px"></button>
+        </div></div>
       <div class="panel"><h2>Home Assistant <span class="muted small" id="shop-hcount"></span></h2>
         <div id="shop-ha-note"></div><ul class="items" id="shop-ha"></ul></div>
     </div>
@@ -215,13 +224,30 @@ loaders.shopping = async () => {
   try {
     const q = new URLSearchParams({ quantities: $("#shop-qty").checked });
     if ($("#shop-list").value) q.set("list_id", $("#shop-list").value);
+    // local midnight of the chosen day, so "since 2 Sep" means your 2 Sep, not UTC's
+    const sinceDay = $("#shop-since").value;
+    if (sinceDay) q.set("since", new Date(sinceDay + "T00:00").toISOString());
+    $("#shop-since-clear").hidden = !sinceDay;
     shop = await api("shopping?" + q);
     if (shop.error) { status.textContent = shop.error; return; }
     $("#shop-list").replaceChildren(...shop.lists.map((l) => el("option", { value: l.id, selected: l.id === shop.list.id }, l.name)));
     $("#shop-list").hidden = shop.lists.length < 2;
-    $("#shop-mealie").replaceChildren(...shop.mealie.map((i) =>
-      el("li", {}, el("span", {}, i.line), el("span", { class: "label" }, i.label))));
-    $("#shop-mcount").textContent = `(${shop.mealie.length})`;
+    const day = (iso) => iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "";
+    const row = (i) => el("li", {}, el("span", {}, i.line),
+      el("span", { class: "label" }, [i.label, day(i.added)].filter(Boolean).join(" · ")));
+    const current = shop.mealie.filter((i) => !i.old), old = shop.mealie.filter((i) => i.old);
+    $("#shop-mealie").replaceChildren(...current.map(row));
+    $("#shop-mcount").textContent = `(${current.length})`;
+    $("#shop-old").hidden = !old.length;
+    if (old.length) {
+      $("#shop-old-title").textContent = `Added before ${day(shop.since)}: probably bought already (${old.length})`;
+      $("#shop-old-list").replaceChildren(...old.map(row));
+      $("#shop-tick-old").textContent = `Tick off these ${old.length}`;
+      $("#shop-tick-old").disabled = false;
+    }
+    $("#shop-hint").textContent = shop.last_tick
+      ? `Last ticked off from this page: ${new Date(shop.last_tick).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. ` +
+        "Forgot to tick after a shop? Set \"added since\" to that shop's date." : "";
     $("#shop-ha").replaceChildren(...shop.ha.map((i) => el("li", { class: i.duplicate ? "dup" : "" }, i.line)));
     $("#shop-hcount").textContent = shop.ha_enabled ? `(${shop.ha.length})` : "";
     $("#shop-ha-note").replaceChildren(
@@ -235,6 +261,19 @@ loaders.shopping = async () => {
   } catch (e) { status.textContent = e.message; }
 };
 $("#shop-qty").addEventListener("change", loaders.shopping);
+$("#shop-since").addEventListener("change", loaders.shopping);
+$("#shop-since-clear").addEventListener("click", () => { $("#shop-since").value = ""; loaders.shopping(); });
+$("#shop-tick-old").addEventListener("click", async () => {
+  const old = shop.mealie.filter((i) => i.old);
+  if (!confirm(`Tick off the ${old.length} Mealie item${old.length === 1 ? "" : "s"} added before ${$("#shop-since").value}?\n` +
+               "Home Assistant items have no dates, so they are left alone.")) return;
+  $("#shop-tick-old").disabled = true;
+  try {
+    const r = await api("shopping/tick", { method: "POST", body: { list_id: shop.list.id, mealie_ids: old.map((i) => i.id), ha_ids: [] } });
+    await loaders.shopping();
+    $("#shop-status").textContent = `Ticked off ${r.mealie} older item${r.mealie === 1 ? "" : "s"} in Mealie.`;
+  } catch (e) { $("#shop-status").textContent = e.message; $("#shop-tick-old").disabled = false; }
+});
 $("#shop-list").addEventListener("change", loaders.shopping);
 $("#shop-copy").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(shop.text + "\n"); }

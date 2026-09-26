@@ -32,10 +32,14 @@ class FakeMealie:
         self.created_organizers = []
         self.shop_items = [
             {"id": "m1", "checked": False, "quantity": 2, "display": "2 carrots",
+             "createdAt": "2026-09-01T09:00:00", "updatedAt": "2026-09-01T09:00:00",
              "food": {"name": "carrot", "pluralName": "carrots", "label": {"name": "Fruit & Veg"}}},
             {"id": "m2", "checked": False, "quantity": 400, "unit": {"name": "g"},
+             # created before the cut-off but topped up after it: counts as new
+             "createdAt": "2026-09-01T09:00:00", "updatedAt": "2026-09-08T18:00:00",
              "food": {"name": "passata"}},
-            {"id": "m3", "checked": False, "quantity": 0, "note": "bin bags", "food": None},
+            {"id": "m3", "checked": False, "quantity": 0, "note": "bin bags", "food": None,
+             "createdAt": "2026-09-07T12:00:00"},
             {"id": "m4", "checked": True, "quantity": 1, "food": {"name": "egg"}},
         ]
         self.edit_during_processing = False

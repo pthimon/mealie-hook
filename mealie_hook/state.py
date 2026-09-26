@@ -67,6 +67,13 @@ class State:
             self._save()
             return n
 
+    def ticked(self) -> str:
+        """Record a shopping tick-off; the page shows it as a hint for `since`."""
+        with self.lock:
+            self.data["last_tick"] = now_iso()
+            self._save()
+            return self.data["last_tick"]
+
     def swept(self):
         with self.lock:
             self.data["last_sweep"] = now_iso()
