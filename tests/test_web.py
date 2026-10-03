@@ -43,8 +43,6 @@ def auth_as(user):
     def dep(request: Request):
         if user is None:
             raise HTTPException(401, "not logged in to Mealie")
-        if not user.get("admin"):
-            raise HTTPException(403, "Mealie admins only")
         return user
     return dep
 
@@ -79,6 +77,32 @@ def test_page_served_without_auth(env):
 def test_api_needs_login_and_admin(env):
     assert env["client"](None).get("/ui/api/rules").status_code == 401
     assert env["client"]({"username": "x", "admin": False}).get("/ui/api/rules").status_code == 403
+
+
+USER = {"username": "glenda", "admin": False, "canOrganize": False}
+
+
+def test_everyday_tabs_are_for_every_user(env):
+    from test_planner import mealie_with_plan
+    env["pipe"].mealie = mealie_with_plan()
+    c = env["client"](USER)
+    assert c.get("/ui/api/me").json() == {"username": "glenda", "ha": False, "can_organize": False}
+    for path in ("/ui/api/shopping", "/ui/api/plan", "/ui/api/upcoming"):
+        assert c.get(path).status_code == 200, path
+    assert post(c, "/ui/api/upcoming/move", {"id": 1, "date": "2026-10-01"}).status_code == 200
+    assert post(c, "/ui/api/shopping/tick", {"list_id": "L1", "mealie_ids": []}).status_code == 200
+
+
+def test_curation_needs_can_organise(env):
+    c = env["client"](USER)
+    for path in ("/ui/api/rules", "/ui/api/review", "/ui/api/history", "/ui/api/recipes"):
+        assert c.get(path).status_code == 403, path
+    assert post(c, "/ui/api/organizers", {"kind": "tags", "name": "Duck"}).status_code == 403
+    assert post(c, "/ui/api/chat", {"messages": []}).status_code == 403
+    assert post(c, "/ui/api/review/test-stew/clear").status_code == 403
+    organiser = env["client"]({**USER, "canOrganize": True})
+    assert organiser.get("/ui/api/rules").status_code == 200
+    assert organiser.get("/ui/api/me").json()["can_organize"] is True
 
 
 def test_writes_need_json_and_same_origin(env):
@@ -257,3 +281,19 @@ def test_tick_records_last_tick_for_the_hint(env):
     assert c.get("/ui/api/shopping").json()["last_tick"]
     r = c.get("/ui/api/shopping", params={"since": SINCE}).json()
     assert [x["line"] for x in r["mealie"] if x["old"]] == []   # m1 is ticked now
+
+
+def test_app_install_files_need_no_login(env):
+    c = env["client"](None)
+    m = c.get("/ui/manifest.webmanifest")
+    assert m.status_code == 200 and m.headers["content-type"].startswith("application/manifest+json")
+    man = m.json()
+    assert man["scope"] == "./" and man["display"] == "standalone"
+    assert "id" not in man          # a relative id would resolve to Mealie's own app id
+    for i in man["icons"]:
+        r = c.get("/ui/" + i["src"])
+        assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert {i["purpose"] for i in man["icons"]} == {"any", "maskable"}
+    assert c.get("/ui/icons/../web.py").status_code == 404
+    assert c.get("/ui/icons/nope.png").status_code == 404
+    assert "fetch" in c.get("/ui/sw.js").text

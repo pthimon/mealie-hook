@@ -7,7 +7,9 @@ Two audiences on one app:
 * `/ui/...` -- the page and its JSON API. Caddy serves it as recipes.<domain>/toolkit/ by
   rewriting that prefix to /ui, so it is same-origin with Mealie and the browser sends
   Mealie's own login cookie. Every /ui/api call checks that cookie against Mealie
-  (`/api/users/self`) and requires an admin.
+  (`/api/users/self`). Any Mealie user gets the everyday tabs (Plan, Upcoming, Shopping,
+  Discover); the curation ones (Needs review, Rules, Change rules, History) need Mealie's own
+  "can organise" permission, which admins have.
 
 State-changing calls must be JSON (a cross-site form cannot send that without a CORS
 preflight, which is never granted) and any Origin header must match the host: together with
@@ -16,6 +18,7 @@ the cookie's SameSite default, that closes CSRF.
 
 import logging
 import time
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -24,13 +27,28 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import bought, chat, discover, planner, review, shopping
+from . import bought, chat, discover, planner, review, shopping, upcoming
+from .mealie import MealieError
 from .pipeline import Pipeline
 from .rules import FILES, Rules, RulesError, unified
 
 log = logging.getLogger(__name__)
 
-UI_FILE = Path(__file__).with_name("ui") / "index.html"
+UI_DIR = Path(__file__).with_name("ui")
+UI_FILE = UI_DIR / "index.html"
+ICONS = {p.name for p in (UI_DIR / "icons").glob("*") if p.suffix in (".png", ".svg")}
+# Installable as its own app ("Add to Home Screen"), separate from Mealie's: its own scope,
+# and its own id. Paths are relative, so they follow whatever prefix Caddy serves the page
+# under. No "id": a relative id resolves against the site root, which is Mealie's own app id
+# ("/"); left out, it defaults to start_url, i.e. this page.
+MANIFEST = {
+    "name": "Mealie Toolkit", "short_name": "Toolkit", "start_url": "./",
+    "scope": "./", "display": "standalone", "theme_color": "#e58325",
+    "background_color": "#ffffff",
+    "description": "Meal plan to shopping list, upcoming ingredients, recipe discovery",
+    "icons": [{"src": f"icons/{k}-{n}.png", "sizes": f"{n}x{n}", "type": "image/png",
+               "purpose": k} for k in ("any", "maskable") for n in (192, 512)],
+}
 COOKIE = "mealie.access_token"
 AUTH_TTL = 300
 
@@ -62,9 +80,12 @@ class MealieAuth:
                 raise HTTPException(401, "Mealie login expired")
             user = r.json()
             self.cache[token] = (time.monotonic() + AUTH_TTL, user)
-        if not user.get("admin"):
-            raise HTTPException(403, "Mealie admins only")
         return user
+
+
+def can_organize(user: dict) -> bool:
+    """Mealie's permission to manage categories, tags and tools -- what the rules decide."""
+    return bool(user.get("admin") or user.get("canOrganize"))
 
 
 def csrf_guard(request: Request):
@@ -107,6 +128,16 @@ class DiscoverIn(BaseModel):
     urls: list[str]
 
 
+class MoveIn(BaseModel):
+    id: int
+    date: str
+
+
+class SwapIn(BaseModel):
+    a: int
+    b: int
+
+
 class PlanItemIn(BaseModel):
     slug: str
     scale: float
@@ -136,6 +167,11 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
     cfg = pipeline.cfg
     ha = shopping.HomeAssistant(cfg.ha_url, cfg.ha_token) if cfg.ha_url else None
     user_dep = [Depends(csrf_guard)]
+
+    def organizer(user=Depends(auth)) -> dict:
+        if not can_organize(user):
+            raise HTTPException(403, "needs Mealie's \"can organise\" permission")
+        return user
     goodfood = goodfood or discover.GoodFood(cfg.data_dir)
 
     def who(user: dict) -> str:
@@ -170,9 +206,26 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
     def ui_page():
         return FileResponse(UI_FILE, headers={"Cache-Control": "no-store"})
 
+    # The app-install files are fetched by the browser without cookies: no login.
+    @app.get("/ui/manifest.webmanifest")
+    def manifest():
+        return JSONResponse(MANIFEST, media_type="application/manifest+json")
+
+    @app.get("/ui/icons/{name}")
+    def icon(name: str):
+        if name not in ICONS:
+            raise HTTPException(404, "no such icon")
+        return FileResponse(UI_DIR / "icons" / name, headers={"Cache-Control": "max-age=86400"})
+
+    @app.get("/ui/sw.js")
+    def service_worker():
+        return FileResponse(UI_DIR / "sw.js", media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache"})
+
     @app.get("/ui/api/me")
     def me(user=Depends(auth)):
-        return {"username": who(user), "ha": bool(ha and ha.enabled)}
+        return {"username": who(user), "ha": bool(ha and ha.enabled),
+                "can_organize": can_organize(user)}
 
     # ----------------------------------------------------------------------- rules
 
@@ -189,11 +242,11 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
         }
 
     @app.get("/ui/api/rules")
-    def get_rules(user=Depends(auth)):
+    def get_rules(user=Depends(organizer)):
         return rules_view()
 
     @app.put("/ui/api/files/{name}", dependencies=user_dep)
-    def put_file(name: str, body: FileIn, user=Depends(auth)):
+    def put_file(name: str, body: FileIn, user=Depends(organizer)):
         if name not in FILES:
             raise HTTPException(404, "no such rules file")
         try:
@@ -203,7 +256,7 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
         return {"ok": True, "snapshot": snap, **rules_view()}
 
     @app.post("/ui/api/organizers", dependencies=user_dep)
-    def create_organizer(body: OrganizerIn, user=Depends(auth)):
+    def create_organizer(body: OrganizerIn, user=Depends(organizer)):
         if body.kind not in ("categories", "tags", "tools", "labels"):
             raise HTTPException(422, "unknown kind")
         name = body.name.strip()
@@ -216,7 +269,7 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
     # ------------------------------------------------------------------------ chat
 
     @app.post("/ui/api/chat", dependencies=user_dep)
-    def chat_turn(body: ChatIn, user=Depends(auth)):
+    def chat_turn(body: ChatIn, user=Depends(organizer)):
         texts = store.texts()
         live = pipeline.live_names()
         try:
@@ -238,7 +291,7 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
         return p
 
     @app.post("/ui/api/proposals/{pid}/try", dependencies=user_dep)
-    def try_proposal(pid: str, body: TryIn, user=Depends(auth)):
+    def try_proposal(pid: str, body: TryIn, user=Depends(organizer)):
         p = _proposal(pid)
         if p.applied.errors:
             raise HTTPException(422, "this proposal has errors")
@@ -251,7 +304,7 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
                               "tools": [t["name"] for t in current.get("tools") or []]}}
 
     @app.post("/ui/api/proposals/{pid}/apply", dependencies=user_dep)
-    def apply_proposal(pid: str, user=Depends(auth)):
+    def apply_proposal(pid: str, user=Depends(organizer)):
         p = _proposal(pid)
         if p.applied.errors or not p.applied.changed:
             raise HTTPException(422, "nothing valid to apply")
@@ -265,11 +318,11 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
     # --------------------------------------------------------------------- history
 
     @app.get("/ui/api/history")
-    def history(user=Depends(auth)):
+    def history(user=Depends(organizer)):
         return store.list_history()
 
     @app.get("/ui/api/history/{snap}")
-    def history_diff(snap: str, user=Depends(auth)):
+    def history_diff(snap: str, user=Depends(organizer)):
         """What the change recorded by `snap` did: its before-snapshot against the state
         right after it (the next snapshot, or the live files if it is the latest)."""
         entries = [h["id"] for h in store.list_history()]        # newest first
@@ -282,7 +335,7 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
                 if before.get(f, "") != after.get(f, "")}
 
     @app.post("/ui/api/history/{snap}/revert", dependencies=user_dep)
-    def revert(snap: str, user=Depends(auth)):
+    def revert(snap: str, user=Depends(organizer)):
         try:
             store.revert(snap, who(user))
         except RulesError as e:
@@ -292,16 +345,16 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
     # ---------------------------------------------------------------------- review
 
     @app.get("/ui/api/review")
-    def review_queue(user=Depends(auth)):
+    def review_queue(user=Depends(organizer)):
         return review.flagged(pipeline.mealie, cfg.review_tag)
 
     @app.post("/ui/api/review/{slug}/clear", dependencies=user_dep)
-    def review_clear(slug: str, user=Depends(auth)):
+    def review_clear(slug: str, user=Depends(organizer)):
         review.clear(pipeline.mealie, slug, cfg.review_tag)
         return {"ok": True}
 
     @app.get("/ui/api/recipes")
-    def recipes(user=Depends(auth)):
+    def recipes(user=Depends(organizer)):
         items = sorted(pipeline.mealie.recipes(), key=lambda r: r.get("createdAt") or "",
                        reverse=True)
         return [{"slug": r["slug"], "name": r["name"]} for r in items]
@@ -347,6 +400,34 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
         log.info("%s added the plan to shopping list %s: %s", who(user), body.list_id, res)
         return res
 
+    # -------------------------------------------------------------------- upcoming
+
+    @app.get("/ui/api/upcoming")
+    def upcoming_view(today: str | None = None, since: str | None = None, user=Depends(auth)):
+        try:
+            day = date.fromisoformat(today) if today else date.today()
+            start = date.fromisoformat(since) if since else None
+        except ValueError:
+            raise HTTPException(422, "dates must be YYYY-MM-DD") from None
+        return upcoming.build(pipeline.mealie, pipeline.state, day, cfg.plan_default_servings,
+                              since=start)
+
+    @app.post("/ui/api/upcoming/move", dependencies=user_dep)
+    def upcoming_move(body: MoveIn, user=Depends(auth)):
+        try:
+            day = date.fromisoformat(body.date)
+        except ValueError:
+            raise HTTPException(422, "date must be YYYY-MM-DD") from None
+        res = upcoming.move(pipeline.mealie, body.id, day)
+        log.info("%s moved plan entry %s: %s -> %s", who(user), body.id, res["from"], res["to"])
+        return res
+
+    @app.post("/ui/api/upcoming/swap", dependencies=user_dep)
+    def upcoming_swap(body: SwapIn, user=Depends(auth)):
+        res = upcoming.swap(pipeline.mealie, body.a, body.b)
+        log.info("%s swapped plan entries %s and %s", who(user), body.a, body.b)
+        return res
+
     # -------------------------------------------------------------------- discover
 
     @app.get("/ui/api/discover")
@@ -365,6 +446,11 @@ def create_app(pipeline: Pipeline, worker, auth=None, goodfood=None) -> FastAPI:
         log.info("%s queued %d Good Food recipes for import (report %s)", who(user),
                  res["queued"], res["report"])
         return res
+
+    @app.exception_handler(MealieError)
+    def mealie_error(request: Request, exc: MealieError):
+        log.warning("mealie: %s", exc)
+        return JSONResponse({"detail": f"Mealie refused: {exc}"}, status_code=502)
 
     @app.exception_handler(RulesError)
     def rules_error(request: Request, exc: RulesError):

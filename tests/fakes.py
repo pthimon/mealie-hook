@@ -125,6 +125,20 @@ class FakeMealie:
     def mealplans(self, start, end):
         return [e for e in getattr(self, "plan", []) if start <= e["date"] <= end]
 
+    def mealplan(self, entry_id):
+        e = next(e for e in self.plan if e["id"] == entry_id)
+        return {"id": e["id"], "date": e["date"], "entryType": e["entryType"], "title": e.get("title", ""),
+                "text": e.get("text", ""), "recipeId": "rid", "groupId": "g", "userId": "u"}
+
+    def update_mealplan(self, entry_id, body):
+        self.plan_updates = getattr(self, "plan_updates", []) + [(entry_id, dict(body))]
+        if getattr(self, "fail_update_of", None) == entry_id:
+            from mealie_toolkit.mealie import MealieError
+            raise MealieError("PUT -> HTTP 403")
+        e = next(e for e in self.plan if e["id"] == entry_id)
+        e["date"] = body["date"]
+        return body
+
     def household_self(self):
         return {"slug": "family"}
 

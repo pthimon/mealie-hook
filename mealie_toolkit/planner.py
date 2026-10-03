@@ -102,8 +102,11 @@ def default_amount(block: dict, remembered: float | None, default_servings: floa
 
 
 def build(mealie: Mealie, state: State, start: str, end: str,
-          default_servings: float, lists: list[dict] | None = None) -> dict:
-    record = bought.harvest(mealie, state, lists)
+          default_servings: float, lists: list[dict] | None = None,
+          record: dict[str, str] | None = None) -> dict:
+    """`record` is the last-bought record if the caller has just harvested it."""
+    if record is None:
+        record = bought.harvest(mealie, state, lists)
     household = mealie.household_self().get("slug") or ""
     group = mealie.group_self().get("slug") or ""
     url_base = f"/g/{group}/r/" if group else "/r/"

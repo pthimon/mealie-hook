@@ -2,8 +2,10 @@
 
 A companion service for a self-hosted [Mealie](https://mealie.io). It does two jobs:
 finishes off recipes as they are imported (below), and serves the **Mealie Toolkit** page
-on Mealie's own domain: meal plan to shopping list with per-meal sizes, the shopping export,
-finding well-rated BBC Good Food recipes to import, the review queue and the processing rules ([The page](#the-page-mealie-toolkit-at-recipesdomaintoolkit)).
+on Mealie's own domain: meal plan to shopping list with per-meal sizes, what the meals to
+come still need, the shopping export, finding well-rated BBC Good Food recipes to import,
+the review queue and the processing rules
+([The page](#the-page-mealie-toolkit-at-recipesdomaintoolkit)).
 
 ![Plan → list: each planned meal with its own size](docs/plan-meals.png)
 
@@ -68,12 +70,36 @@ survives a lost `data/` directory.
 
 Served by this service, through Caddy, on Mealie's own domain, and styled to match Mealie
 (its default theme, following the system's light or dark setting). It uses your Mealie login
-(the `mealie.access_token` cookie, checked against Mealie on each request) and is for
-Mealie admins only.
+(the `mealie.access_token` cookie, checked against Mealie on each request). Every Mealie user
+gets the everyday tabs: Plan → list, Upcoming, Shopping and Discover. The curation tabs
+(Needs review, Rules, Change rules, History) need Mealie's own **can organise** permission,
+which admins have and which can be given to anyone under Mealie's user settings; for
+everyone else they are hidden, and refused by the server. Changes made in Mealie go through
+the service's own API token, so Mealie records them as that token's user; the service's
+log records who actually made them.
+
+It installs as its own app, next to Mealie's: open the page in Chrome on Android and use
+**Add to Home Screen** (or **Install app**). It has its own icon, the Mealie fork and knife
+with a tick, and opens full screen; the logo top left goes back to Mealie. Mealie's own
+menu has no room for custom links, so this is the way in from a phone.
 
 ![The combined list: every ingredient added up per food, with where it comes from and when it was last bought](docs/plan-combined.png)
 
-- **Plan → list** (the landing tab): replaces Mealie's "add planner to shopping list"
+- **Upcoming** (the landing tab): what the meals still to cook need. Every planned meal from
+  today on, at the size it was added to the shopping list with (Mealie's plan has no sizes,
+  so Plan → list records each meal's), or the usual default for a meal not added yet. Each
+  food's total is listed with which meals need it and when, spoonfuls included and whatever
+  was bought. Type a food ("leek") for a straight answer: yes, how much and first needed
+  when, or no, it's free to use in whatever is being cooked now. What is left is decided by
+  date alone, so the planner should hold the day each meal is actually cooked; when that
+  changes, **▲ ▼** swap a meal's day with the previous or next meal of the same type (dinner
+  with dinner, so a snack never displaces a dinner), or move it a day when there is none,
+  and tapping the day moves it to any date (with **Undo**). All of it writes straight to
+  Mealie's planner, and is much easier on a phone than dragging in Mealie. A meal's size
+  goes with it. Meals planned since the last shop (the latest tick-off seen) that have now
+  passed are listed greyed, counting for nothing, so the plan can be straightened out after
+  the fact; a different start date can be picked.
+- **Plan → list**: replaces Mealie's "add planner to shopping list"
   dialog, in two steps.
   1. **Meals**: the planned meals between two dates (default: today plus six days), each
      with a tick to include it and a size. Recipes that state servings start at
@@ -156,6 +182,7 @@ mealie_toolkit/
   editor.md       the rules editor's own instructions (not editable from the page)
   shopping.py     Mealie + Home Assistant shopping export and tick-off
   planner.py      Plan -> list: the meal plan, scaled per meal, onto a shopping list
+  upcoming.py     Upcoming: ingredients still needed by the meals to come
   discover.py     Discover: Good Food search, per-recipe nutrition, bulk import
   bought.py       when each food was last bought (ticked off a list)
   review.py       the Needs review queue

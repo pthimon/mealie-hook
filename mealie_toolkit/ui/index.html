@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mealie Toolkit</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#e58325">
+<link rel="icon" href="icons/any.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/maskable-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -40,7 +44,8 @@ header h1 { font-size: 16px; font-weight: 400; margin: 0; flex: 1; opacity: .9; 
 header h1::before { content: "·"; margin-right: 10px; }
 header .user { font-size: 14px; opacity: .9; }
 nav { display: flex; gap: 0; padding: 0 16px; overflow-x: auto; border-bottom: 1px solid var(--line);
-  background: var(--bg); }
+  background: var(--bg); scrollbar-width: none; }
+nav::-webkit-scrollbar { display: none; }
 nav button { border: 0; background: none; height: 48px; padding: 0 16px; font: inherit; font-size: 14px;
   letter-spacing: .1px; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
 nav button:hover { background: var(--tint); }
@@ -147,6 +152,25 @@ input.num { width: 5em; padding: 5px 6px; font: inherit; color: var(--text); bac
 .disc-title { color: var(--text); font-weight: 500; text-decoration: none; }
 .disc-title:hover { color: var(--primary); }
 .stars { color: var(--primary); }
+.answer { margin-top: 10px; padding: 10px 12px; border-radius: 4px; }
+.answer.yes { background: var(--warn-bg); color: var(--warn-text); }
+.answer.no { background: var(--add-bg); color: var(--add); }
+.answer .small { margin-top: 2px; opacity: .9; }
+ul.upc-meals { list-style: none; margin: 0; padding: 0; }
+ul.upc-meals li { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.upc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.upc-when { display: flex; gap: 8px; align-items: center; }
+ul.upc-meals li.passed .upc-main { opacity: .55; }
+#upc-moved:not(:empty) { margin: 4px 0 6px; padding: 8px 10px; border-radius: 4px; background: var(--tint); }
+.upc-move { display: flex; gap: 6px; }
+.upc-move .step { width: 40px; height: 40px; padding: 0; border-radius: 50%; font-size: 13px; }
+ul.upc-meals li:last-child { border-bottom: 0; }
+ul.upc-meals a { color: var(--text); font-weight: 500; text-decoration: none; }
+ul.upc-meals a:hover { color: var(--primary); }
+.upc-day { position: relative; flex: none; text-align: left; border: 0; background: none; padding: 6px 0;
+  color: var(--muted); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.upc-day:hover { color: var(--primary); }
+.upc-picker { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .spin::after { content: " …"; animation: dots 1.2s steps(4) infinite; }
 @keyframes dots { 0% { content: ""; } 25% { content: " ."; } 50% { content: " .."; } 75% { content: " ..."; } }
 </style>
@@ -159,6 +183,7 @@ input.num { width: 5em; padding: 5px 6px; font: inherit; color: var(--text); bac
 </header>
 <div id="banner" class="banner" hidden></div>
 <nav id="tabs">
+  <button data-tab="upcoming">Upcoming</button>
   <button data-tab="plan">Plan → list</button>
   <button data-tab="shopping">Shopping</button>
   <button data-tab="discover">Discover</button>
@@ -196,6 +221,27 @@ input.num { width: 5em; padding: 5px 6px; font: inherit; color: var(--text); bac
       </div>
       <div id="plan-add-status" class="small muted" style="margin-top:8px"></div>
     </div>
+  </section>
+
+  <section class="tab" id="tab-upcoming">
+    <div class="panel">
+      <input type="text" id="upc-q" placeholder="Is it needed for anything? e.g. leek" autocomplete="off">
+      <div id="upc-answer"></div>
+      <div id="upc-status" class="small muted" style="margin-top:6px"></div>
+    </div>
+    <div class="panel"><h2>Meals</h2>
+      <p class="small muted">At the size each was added to the shopping list. ▲ ▼ swap a meal's day with the
+        previous or next meal of the same type (dinner with dinner), or move it a day when there is none; tap the day
+        to move it to any day. Changes go straight into Mealie's planner. Greyed meals
+        have passed: they are only here to straighten the plan out, and count for nothing.</p>
+      <div class="row small muted" style="margin-bottom:6px">
+        <label class="row" style="gap:6px">Passed meals since <input type="date" id="upc-since" style="width:auto;padding:4px 6px"></label>
+        <span id="upc-since-note"></span></div>
+      <div id="upc-moved" class="small"></div>
+      <ul class="upc-meals" id="upc-meals"></ul></div>
+    <div class="panel"><h2>What they need <span class="muted small" id="upc-count"></span></h2>
+      <p class="small muted">Everything the recipes call for, spoonfuls included, whatever was bought.</p>
+      <div id="upc-foods"></div></div>
   </section>
 
   <section class="tab" id="tab-shopping">
@@ -331,13 +377,17 @@ function diffView(text) {
 
 // ------------------------------------------------------------------------------- tabs
 const loaders = {};
+// Needs Mealie's "can organise" permission; hidden for everyone else (the server refuses too).
+const CURATION = new Set(["review", "rules", "chat", "history"]);
+let canOrganize = false;
 function show(tab) {
+  if (!document.querySelector(`#tab-${tab}`) || (CURATION.has(tab) && !canOrganize)) tab = "upcoming";
   document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
   document.querySelectorAll("section.tab").forEach((s) => s.classList.toggle("on", s.id === "tab-" + tab));
   if (loaders[tab]) loaders[tab]();
 }
 document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => { location.hash = b.dataset.tab; }));
-window.addEventListener("hashchange", () => show(location.hash.slice(1) || "plan"));
+window.addEventListener("hashchange", () => show(location.hash.slice(1) || "upcoming"));
 
 // ------------------------------------------------------------------------ plan -> list
 let plan = null;
@@ -550,6 +600,133 @@ $("#plan-add").addEventListener("click", async () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (e) { $("#plan-add-status").textContent = e.message; planSummary(); }
 });
+
+// --------------------------------------------------------------------------- upcoming
+let upc = null;
+function dayLabel(iso) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const d = new Date(iso + "T00:00"), diff = Math.round((d - t) / 86400000);
+  if (diff === 0) return "today";
+  if (diff === 1) return "tomorrow";
+  if (diff === -1) return "yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+function upcAmount(g) {
+  const parts = Object.entries(g.amounts).map(([u, q]) => {
+    const unit = u ? (q > 1 && g.unit_plurals[u] ? g.unit_plurals[u] : u) : "";
+    return [fmtQty(q, u), unit].filter(Boolean).join(" ");
+  });
+  return parts.join(" + ");
+}
+function upcName(g) {
+  if (!g.food) return g.text;
+  const count = g.amounts[""] || 0;
+  return count > 1 && g.plural ? g.plural : g.food;
+}
+function upcUse(u) {
+  const q = u.qty ? [fmtQty(u.qty, u.unit), u.qty > 1 && u.unit_plural ? u.unit_plural : u.unit].filter(Boolean).join(" ") : "";
+  return `${dayLabel(u.date)}: ${q ? q + " · " : ""}${u.name}`;
+}
+const upcNorm = (s) => (s || "").toLowerCase().replace(/[-‐–]/g, " ").replace(/['’]/g, "").replace(/\s+/g, " ").trim();
+function upcMatches(g, q) {
+  const names = [g.food, g.plural, g.food ? "" : g.text].map(upcNorm).filter(Boolean);
+  const qs = [q, q.replace(/es$/, ""), q.replace(/s$/, "")].filter((x) => x.length >= 2);
+  return names.some((n) => qs.some((x) => n.includes(x)));
+}
+function renderUpcoming() {
+  const q = upcNorm($("#upc-q").value);
+  const hits = q ? upc.foods.filter((g) => upcMatches(g, q)) : upc.foods;
+  const answer = $("#upc-answer");
+  if (!q) answer.replaceChildren();
+  else if (!hits.length) answer.replaceChildren(el("div", { class: "answer no" }, el("strong", {}, "No. "),
+    `Nothing planned from today to ${dayLabel(upc.until)} uses “${$("#upc-q").value.trim()}”, so it's free to use.`));
+  else answer.replaceChildren(...hits.map((g) => el("div", { class: "answer yes" }, el("strong", {}, "Yes: "),
+    `${upcName(g)}${upcAmount(g) ? ", " + upcAmount(g) + " in all" : ""}, first needed ${dayLabel(g.first)}.`,
+    el("div", { class: "small" }, g.uses.map(upcUse).join(" · ")))));
+
+  $("#upc-meals").replaceChildren(...(upc.meals.length ? upc.meals.map((m, i) => {
+    // Swap with the nearest meal of the same type on another day (dinners reorder among
+    // dinners, so a snack never displaces one); with none that way, move a day instead.
+    const same = (x) => x.type === m.type && x.date !== m.date;
+    const up = upc.meals.slice(0, i).reverse().find(same);
+    const down = upc.meals.slice(i + 1).find(same);
+    const shift = (n) => { const d = new Date(m.date + "T00:00"); d.setDate(d.getDate() + n); return isoDay(d); };
+    const earlier = shift(-1), canEarlier = earlier >= upc.since;
+    const upTitle = up ? `Swap with ${up.name} (${dayLabel(up.date)})` : canEarlier ? `Move to ${dayLabel(earlier)}` : "";
+    const downTitle = down ? `Swap with ${down.name} (${dayLabel(down.date)})` : `Move to ${dayLabel(shift(1))}`;
+    const picker = el("input", { type: "date", class: "upc-picker", value: m.date, min: upc.since, tabindex: "-1",
+      onchange: () => picker.value && picker.value !== m.date && upcMove(m, picker.value) });
+    const dayBtn = el("button", { class: "upc-day", title: "Move to another day", onclick: () => {
+      try { picker.showPicker(); } catch { picker.focus(); picker.click(); } } }, dayLabel(m.date), " ▾", picker);
+    return el("li", { class: "upc-meal" + (m.passed ? " passed" : "") },
+      el("div", { class: "upc-main" }, el("div", { class: "upc-when" }, dayBtn, el("span", { class: "chip" }, m.type || "meal"),
+          m.passed ? el("span", { class: "chip quiet" }, "passed") : null),
+        el("a", { href: m.url, target: "_blank", rel: "noopener" }, m.name),
+        el("span", { class: "small muted" }, [m.servings != null ? `${fmtQty(m.servings)} ${m.unit}` : null, fmtScale(m.scale),
+          m.source === "added" ? "as added to the list" : m.source === "last used" ? "last size used, not added yet" : "default size, not added yet"].filter(Boolean).join(" · "))),
+      el("div", { class: "upc-move" },
+        el("button", { class: "btn step", title: upTitle, disabled: (!up && !canEarlier) || upcBusy,
+          onclick: () => up ? upcSwap(m, up) : upcMove(m, earlier) }, "▲"),
+        el("button", { class: "btn step", title: downTitle, disabled: upcBusy,
+          onclick: () => down ? upcSwap(m, down) : upcMove(m, shift(1)) }, "▼")));
+  }) : [el("li", { class: "muted" }, "Nothing planned from today on.")]));
+  const passed = upc.meals.filter((m) => m.passed).length;
+  $("#upc-since").value = upc.since;
+  $("#upc-since-note").replaceChildren(
+    upc.since_chosen ? el("button", { class: "linkish", onclick: () => { upcSince = ""; loaders.upcoming(); } },
+      upc.last_shop ? `back to the last shop (${dayLabel(upc.last_shop)})` : "back to the default")
+    : upc.last_shop ? `the last shop, ${dayLabel(upc.last_shop)}` : "no shop seen yet, so the last week",
+    passed ? "" : " · none passed");
+
+  const byLabel = new Map();
+  for (const g of hits) { const l = g.label || "Other"; if (!byLabel.has(l)) byLabel.set(l, []); byLabel.get(l).push(g); }
+  const labels = [...byLabel.keys()].sort((a, b) => (a === "Other") - (b === "Other") || a.localeCompare(b));
+  $("#upc-foods").replaceChildren(...labels.flatMap((l) => [el("h3", {}, l), el("ul", { class: "combined" }, byLabel.get(l).map((g) =>
+    el("li", {}, el("div", { class: "row", style: "gap:6px;align-items:baseline" },
+      el("div", { class: "body" }, el("span", { class: "what" }, upcName(g)), upcAmount(g) ? el("span", { class: "qty" }, upcAmount(g)) : null,
+        el("div", { class: "from" }, g.uses.map(upcUse).join(" · "))),
+      el("span", { class: "bought" }, "first " + dayLabel(g.first))))))]));
+  $("#upc-count").textContent = q ? `(${hits.length} of ${upc.foods.length})` : `(${upc.foods.length})`;
+}
+let upcBusy = false;
+let upcSince = "";              // a chosen start for passed meals; empty = the last shop
+async function upcChange(path, body, message, undo) {
+  if (upcBusy) return;
+  upcBusy = true; renderUpcoming();
+  const note = $("#upc-moved");
+  try {
+    await api(path, { method: "POST", body });
+    await loaders.upcoming();
+    note.replaceChildren(message + " ", undo ? el("button", { class: "linkish", onclick: () => { note.replaceChildren(); undo(); } }, "Undo") : "");
+  } catch (e) { note.textContent = e.message; }
+  upcBusy = false; renderUpcoming();
+}
+function upcSwap(m, other) {
+  if (!other) return;
+  upcChange("upcoming/swap", { a: m.id, b: other.id },
+    `${m.name} is now ${dayLabel(other.date)}, ${other.name} ${dayLabel(m.date)}.`,
+    () => upcChange("upcoming/swap", { a: m.id, b: other.id }, "Swapped back."));
+}
+function upcMove(m, day) {
+  const from = m.date;
+  upcChange("upcoming/move", { id: m.id, date: day }, `${m.name} moved to ${dayLabel(day)}.`,
+    () => upcChange("upcoming/move", { id: m.id, date: from }, `${m.name} moved back to ${dayLabel(from)}.`));
+}
+loaders.upcoming = async () => {
+  const status = $("#upc-status");
+  status.className = "small muted spin"; status.textContent = "Reading the plan";
+  try {
+    const q = new URLSearchParams({ today: isoDay(new Date()) });
+    if (upcSince) q.set("since", upcSince);
+    upc = await api("upcoming?" + q);
+    const until = new Date(upc.today + "T00:00"); until.setDate(until.getDate() + upc.days);
+    upc.until = isoDay(until);
+    status.className = "small muted"; status.textContent = "";
+    renderUpcoming();
+  } catch (e) { status.className = "small muted"; status.textContent = e.message; }
+};
+$("#upc-q").addEventListener("input", () => upc && renderUpcoming());
+$("#upc-since").addEventListener("change", () => { upcSince = $("#upc-since").value; loaders.upcoming(); });
 
 // --------------------------------------------------------------------------- discover
 const disc = { items: [], page: 0, has_more: false, total: 0, filters: [], sorts: [], picked: new Set(), queued: new Set(), key: "" };
@@ -910,9 +1087,15 @@ loaders.history = async () => {
 };
 
 // ------------------------------------------------------------------------------- boot
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 (async () => {
-  try { const me = await api("me"); $("#user").textContent = me.username; } catch {}
-  show(location.hash.slice(1) || "plan");
+  try {
+    const me = await api("me");
+    $("#user").textContent = me.username;
+    canOrganize = me.can_organize;
+  } catch {}
+  document.querySelectorAll("nav button").forEach((b) => { b.hidden = CURATION.has(b.dataset.tab) && !canOrganize; });
+  show(location.hash.slice(1) || "upcoming");
 })();
 </script>
 </body>

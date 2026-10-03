@@ -100,7 +100,8 @@ class State:
             scales = self.data.setdefault("plan_scales", {})
             at = now_iso()
             for e in entries:
-                added[str(e["id"])] = {"at": at, "date": e.get("date")}
+                added[str(e["id"])] = {"at": at, "date": e.get("date"), "slug": e.get("slug"),
+                                       "scale": e.get("scale")}
                 if e.get("slug") and e.get("scale"):
                     scales[e["slug"]] = e["scale"]
             cutoff = (datetime.now(timezone.utc).date() - timedelta(days=keep_days)).isoformat()

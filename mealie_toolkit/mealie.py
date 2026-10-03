@@ -118,6 +118,12 @@ class Mealie:
     def mealplans(self, start: str, end: str) -> list[dict]:
         return self._all(f"/households/mealplans?start_date={start}&end_date={end}")
 
+    def mealplan(self, entry_id: int) -> dict:
+        return self.req("GET", f"/households/mealplans/{entry_id}")
+
+    def update_mealplan(self, entry_id: int, body: dict) -> dict:
+        return self.req("PUT", f"/households/mealplans/{entry_id}", body)
+
     def household_self(self) -> dict:
         return self.req("GET", "/households/self")
 
